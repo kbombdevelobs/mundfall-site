@@ -21,6 +21,8 @@ interface Shell { x: number; y: number; vx: number; vy: number; tx: number; ty: 
 interface Flash { x: number; y: number; age: number; max: number; r: number; }
 interface Dust { x: number; y: number; vx: number; vy: number; age: number; max: number; r: number; }
 interface Spark { x: number; y: number; vx: number; vy: number; life: number; max: number; }
+/** A rock shard blown free, tumbling slowly off into space at near-zero g. */
+interface Shard { x: number; y: number; vx: number; vy: number; rot: number; vrot: number; size: number; verts: number[]; light: number; }
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 
@@ -30,6 +32,7 @@ export class Battle {
   private flashes: Flash[] = [];
   private dust: Dust[] = [];
   private sparks: Spark[] = [];
+  private shards: Shard[] = [];
 
   private px = -200;
   private py = -200;
@@ -63,20 +66,25 @@ export class Battle {
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
-  /** Where the barrage is aimed: the cursor, pulled onto the lunar disc. */
+  /** A random point on the lunar disc — the roaming siege. */
+  private randomSurfacePoint(): { x: number; y: number } {
+    const m = this.moon;
+    const a = Math.random() * Math.PI * 2;
+    const rr = Math.sqrt(Math.random()) * m.r * 0.86;
+    return { x: m.x + Math.cos(a) * rr, y: m.y + Math.sin(a) * rr };
+  }
+
+  /**
+   * Where the barrage is aimed. When the cursor is over the moon, fire
+   * concentrates there. Off the moon (or before the visitor takes the
+   * controls) it scatters across the surface — no converging lines.
+   */
   private aimPoint(): { x: number; y: number } {
     const m = this.moon;
-    if (!this.pointerSeen) {
-      // Before the visitor takes the controls, the siege roams the surface.
-      const a = Math.random() * Math.PI * 2;
-      const rr = Math.sqrt(Math.random()) * m.r * 0.85;
-      return { x: m.x + Math.cos(a) * rr, y: m.y + Math.sin(a) * rr };
-    }
-    let dx = this.px - m.x;
-    let dy = this.py - m.y;
-    const d = Math.hypot(dx, dy) || 1;
-    const rr = Math.min(d, m.r * 0.9);
-    return { x: m.x + (dx / d) * rr, y: m.y + (dy / d) * rr };
+    if (!this.pointerSeen) return this.randomSurfacePoint();
+    const d = Math.hypot(this.px - m.x, this.py - m.y);
+    if (d > m.r * 0.92) return this.randomSurfacePoint();
+    return { x: this.px, y: this.py };
   }
 
   /** Lob a shell in from off-screen above, toward a surface point. */
@@ -127,6 +135,7 @@ export class Battle {
     this.stepTimed(this.flashes, dt);
     this.stepDust(dt);
     this.stepSparks(dt);
+    this.stepShards(dt);
   }
 
   private stepShells(dt: number): void {
@@ -162,6 +171,11 @@ export class Battle {
       const sp = 50 + Math.random() * 150;
       this.sparks.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 30, life: 0.25 + Math.random() * 0.3, max: 0.55 });
     }
+    // Occasionally a chunk of the moon is blown free — slow tumbling rubble.
+    if (Math.random() < 0.45) {
+      const count = 1 + Math.floor(Math.random() * 3);
+      for (let k = 0; k < count; k++) this.spawnShard(x, y);
+    }
     this.audio.impact(clamp((x / window.innerWidth) * 2 - 1, -1, 1));
     this.onHit(x, y); // burns the lasting crater into the moon's surface
   }
@@ -191,6 +205,40 @@ export class Battle {
     }
   }
 
+  private spawnShard(x: number, y: number): void {
+    const m = this.moon;
+    // Fling away from the moon's centre, so debris reads as blown off the body.
+    let ax = x - m.x, ay = y - m.y;
+    const d = Math.hypot(ax, ay) || 1;
+    ax /= d; ay /= d;
+    const spread = (Math.random() - 0.5) * 1.0;
+    const dirX = ax * Math.cos(spread) - ay * Math.sin(spread);
+    const dirY = ax * Math.sin(spread) + ay * Math.cos(spread);
+    const sp = 10 + Math.random() * 34; // slow
+    // Irregular rock silhouette: a ring of jittered radii.
+    const n = 5 + Math.floor(Math.random() * 3);
+    const verts: number[] = [];
+    for (let i = 0; i < n; i++) verts.push(0.55 + Math.random() * 0.55);
+    this.shards.push({
+      x, y, vx: dirX * sp, vy: dirY * sp - 4,
+      rot: Math.random() * Math.PI * 2, vrot: (Math.random() - 0.5) * 0.5,
+      size: 3 + Math.random() * 9, verts, light: Math.random() * Math.PI * 2,
+    });
+    if (this.shards.length > 90) this.shards.shift();
+  }
+
+  private stepShards(dt: number): void {
+    const W = window.innerWidth, H = window.innerHeight;
+    for (let i = this.shards.length - 1; i >= 0; i--) {
+      const s = this.shards[i];
+      s.x += s.vx * dt; s.y += s.vy * dt;
+      s.vy += 5 * dt; // very, very low gravity
+      s.rot += s.vrot * dt;
+      const m = 80;
+      if (s.x < -m || s.x > W + m || s.y > H + m || s.y < -H) this.shards.splice(i, 1);
+    }
+  }
+
   // --- drawing ------------------------------------------------------------
 
   private draw(): void {
@@ -199,6 +247,7 @@ export class Battle {
 
     // Dust is smoke — soft, opaque-ish, drawn straight.
     this.drawDust(ctx);
+    this.drawShards(ctx);
 
     ctx.globalCompositeOperation = 'lighter';
     this.drawShells(ctx);
@@ -221,6 +270,32 @@ export class Battle {
       ctx.beginPath();
       ctx.arc(d.x, d.y, r, 0, Math.PI * 2);
       ctx.fill();
+    }
+  }
+
+  private drawShards(ctx: CanvasRenderingContext2D): void {
+    for (const s of this.shards) {
+      ctx.save();
+      ctx.translate(s.x, s.y);
+      ctx.rotate(s.rot);
+      ctx.beginPath();
+      const n = s.verts.length;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2;
+        const r = s.verts[i] * s.size;
+        const vx = Math.cos(a) * r, vy = Math.sin(a) * r;
+        if (i === 0) ctx.moveTo(vx, vy); else ctx.lineTo(vx, vy);
+      }
+      ctx.closePath();
+      // Lit on one edge, dark on the other — a tiny rock in hard sunlight.
+      const lx = Math.cos(s.light) * s.size, ly = Math.sin(s.light) * s.size;
+      const g = ctx.createLinearGradient(-lx, -ly, lx, ly);
+      g.addColorStop(0, '#6c6862');
+      g.addColorStop(0.5, '#34322f');
+      g.addColorStop(1, '#141312');
+      ctx.fillStyle = g;
+      ctx.fill();
+      ctx.restore();
     }
   }
 

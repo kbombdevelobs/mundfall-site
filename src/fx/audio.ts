@@ -16,13 +16,28 @@ export class BattleAudio {
   private armed = false; // true once a gesture has resumed the context
   private lastSfx = 0;
 
+  // Prussian march sequencer.
+  private march: GainNode | null = null;
+  private marchTimer: number | null = null;
+  private marchStep = 0;
+  private nextStepTime = 0;
+  private static readonly EIGHTH = 60 / 112 / 2; // 112 bpm march, eighth note
+  // 4-bar martial motif in D minor (Hz; 0 = rest), one entry per quarter.
+  private static readonly MELODY = [
+    440, 440, 587.33, 440, 349.23, 440, 587.33, 0,
+    440, 466.16, 440, 392, 349.23, 329.63, 293.66, 0,
+  ];
+
   constructor() {
     // Arm on the first gesture of any kind — then the bed fades in.
     const arm = () => {
       this.ensure();
       void this.ctx?.resume();
-      if (this.wanted) this.fadeBed(0.13, 2.5);
       this.armed = true;
+      if (this.wanted) {
+        this.fadeBed(0.1, 2.5);
+        this.startMarch();
+      }
       window.removeEventListener('pointerdown', arm);
       window.removeEventListener('pointermove', arm);
       window.removeEventListener('keydown', arm);
@@ -41,7 +56,9 @@ export class BattleAudio {
     this.wanted = !this.wanted;
     this.ensure();
     void this.ctx?.resume();
-    this.fadeBed(this.wanted ? 0.13 : 0.0001, this.wanted ? 1.2 : 0.6);
+    this.fadeBed(this.wanted ? 0.1 : 0.0001, this.wanted ? 1.2 : 0.6);
+    if (this.wanted) this.startMarch();
+    else this.stopMarch();
     return this.wanted;
   }
 
@@ -186,6 +203,11 @@ export class BattleAudio {
     this.master.gain.value = 0.9;
     this.master.connect(ctx.destination);
 
+    // Bus for the march, sat just under the SFX.
+    this.march = ctx.createGain();
+    this.march.gain.value = 0.0001;
+    this.march.connect(this.master);
+
     // --- Continuous low space rumble bed ---
     this.bed = ctx.createGain();
     this.bed.gain.value = 0.0001;
@@ -233,5 +255,145 @@ export class BattleAudio {
     lfo.start();
 
     return ctx;
+  }
+
+  // --- Prussian march -----------------------------------------------------
+
+  private startMarch(): void {
+    const ctx = this.ensure();
+    if (!this.march) return;
+    const now = ctx.currentTime;
+    this.march.gain.cancelScheduledValues(now);
+    this.march.gain.setValueAtTime(Math.max(0.0001, this.march.gain.value), now);
+    this.march.gain.linearRampToValueAtTime(0.5, now + 1.5);
+    // Start the scheduler even if the context is still resuming — pumpMarch
+    // waits for 'running' before it lays down any notes.
+    if (this.marchTimer !== null) return;
+    this.nextStepTime = now + 0.12;
+    this.marchTimer = window.setInterval(() => this.pumpMarch(), 25);
+  }
+
+  private stopMarch(): void {
+    if (this.march && this.ctx) {
+      const now = this.ctx.currentTime;
+      this.march.gain.cancelScheduledValues(now);
+      this.march.gain.setValueAtTime(this.march.gain.value, now);
+      this.march.gain.linearRampToValueAtTime(0.0001, now + 0.5);
+    }
+    if (this.marchTimer !== null) {
+      window.clearInterval(this.marchTimer);
+      this.marchTimer = null;
+    }
+  }
+
+  /** Schedule march steps a little ahead of the audio clock. */
+  private pumpMarch(): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    if (ctx.state !== 'running') {
+      // Hold the cursor at the clock until the context actually starts.
+      this.nextStepTime = ctx.currentTime + 0.12;
+      return;
+    }
+    while (this.nextStepTime < ctx.currentTime + 0.15) {
+      this.scheduleStep(this.marchStep, this.nextStepTime);
+      this.marchStep = (this.marchStep + 1) % 32; // 4 bars × 8 eighths
+      this.nextStepTime += BattleAudio.EIGHTH;
+    }
+  }
+
+  private scheduleStep(step: number, t: number): void {
+    const beat = step % 8;
+    if (beat === 0 || beat === 4) { this.kick(t); this.oom(t, beat === 0 ? 73.42 : 110.0); }
+    if (beat === 2 || beat === 6) { this.snare(t); this.pah(t); }
+    if (beat === 7) this.snare(t, 0.3); // pickup roll into the downbeat
+    if (step % 2 === 0) {
+      const freq = BattleAudio.MELODY[(step / 2) % 16];
+      if (freq) this.brass(t, freq);
+    }
+  }
+
+  private kick(t: number): void {
+    const ctx = this.ctx!;
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(150, t);
+    o.frequency.exponentialRampToValueAtTime(46, t + 0.16);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.9, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    o.connect(g).connect(this.march!);
+    o.start(t); o.stop(t + 0.22);
+  }
+
+  private snare(t: number, level = 0.5): void {
+    const ctx = this.ctx!;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noiseBuffer;
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 1400;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(level, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
+    src.connect(hp).connect(g).connect(this.march!);
+    src.start(t); src.stop(t + 0.15);
+  }
+
+  private oom(t: number, freq: number): void {
+    const ctx = this.ctx!;
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.value = freq;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 360;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.5, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    o.connect(lp).connect(g).connect(this.march!);
+    o.start(t); o.stop(t + 0.22);
+  }
+
+  private pah(t: number): void {
+    const ctx = this.ctx!;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 1100;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.26, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+    lp.connect(g).connect(this.march!);
+    for (const f of [293.66, 349.23, 440]) { // D minor stab
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = f;
+      o.connect(lp);
+      o.start(t); o.stop(t + 0.18);
+    }
+  }
+
+  private brass(t: number, freq: number): void {
+    const ctx = this.ctx!;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(1500, t);
+    lp.frequency.linearRampToValueAtTime(2400, t + 0.05);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.3, t + 0.03);
+    g.gain.setValueAtTime(0.3, t + 0.22);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.42);
+    lp.connect(g).connect(this.march!);
+    for (const detune of [-7, 7]) {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = freq;
+      o.detune.value = detune;
+      o.connect(lp);
+      o.start(t); o.stop(t + 0.44);
+    }
   }
 }

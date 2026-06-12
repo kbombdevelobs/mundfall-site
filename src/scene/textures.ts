@@ -60,9 +60,12 @@ export interface MoonMaps {
   colorMap: THREE.CanvasTexture;
   normalMap: THREE.CanvasTexture;
   bumpMap: THREE.CanvasTexture;
-  /** Live canvases + dimensions, so impacts can stamp real craters in. */
+  /** Live working canvases, so impacts can stamp (and heal) real craters. */
   colorCtx: CanvasRenderingContext2D;
   bumpCtx: CanvasRenderingContext2D;
+  /** Pristine snapshots, re-composited under the scars so craters can heal. */
+  baseColor: HTMLCanvasElement;
+  baseBump: HTMLCanvasElement;
   width: number;
   height: number;
 }
@@ -235,7 +238,16 @@ export function createMoonMaps(seed = 0x5eed): MoonMaps {
   const bumpMap = new THREE.CanvasTexture(bumpCanvas);
   bumpMap.wrapS = THREE.RepeatWrapping;
 
-  return { colorMap, normalMap, bumpMap, colorCtx, bumpCtx, width: W, height: H };
+  // Pristine snapshots of the freshly-painted surface, so the scar layer can
+  // be re-composited over them each tick and slowly fade (heal) away.
+  const baseColor = document.createElement('canvas');
+  baseColor.width = W; baseColor.height = H;
+  baseColor.getContext('2d')!.drawImage(colorCanvas, 0, 0);
+  const baseBump = document.createElement('canvas');
+  baseBump.width = W; baseBump.height = H;
+  baseBump.getContext('2d')!.drawImage(bumpCanvas, 0, 0);
+
+  return { colorMap, normalMap, bumpMap, colorCtx, bumpCtx, baseColor, baseBump, width: W, height: H };
 }
 
 /** Soft radial gradient sprite used for the atmospheric dust halo. */

@@ -31,11 +31,20 @@ the favicon is inline SVG, and all audio is synthesized with WebAudio.
   hard raking light into a sharp terminator, crushed exposure for grit.
 - **Atmospheric eclipse** — a slow blood-shadow breathes across the disc;
   impacts deepen it for a moment, like the body flinching under fire.
-- **Bombardment** — ambient salvos never stop: shells streak in, flash, throw
-  dust and drifting smoke, and leave charred scars that rotate with the moon.
-- **Call a strike** — click anywhere to drop a cluster onto the surface.
-- **Minimal reticle cursor**, pointer parallax, film grain, and a continuous
-  synthesized low rumble with gritty impact booms (sound on by default).
+- **Bombardment that tracks the cursor** — fire concentrates wherever you
+  point; off the moon it scatters across the surface. Shells streak in, flash,
+  throw dust and drifting smoke.
+- **Real, healing craters** — each impact burns a crater into the moon's own
+  texture (so it rides the spin and slips around the limb), then heals very
+  slowly over the following minute.
+- **Free-floating rubble** — chunks blown off the moon tumble away into space
+  at near-zero gravity and drift off screen.
+- **Rally cry** — every strike stamps "The Mund Needs YOU, Soldaten!" in
+  dark-red blackletter over the eclipse, with a glitch/shake.
+- **Prussian march** — a fully synthesized martial loop (kick, snare, oom-pah
+  brass + a minor-key motif) under a low space rumble and gritty impact booms.
+  Sound is on by default; a minimal toggle mutes it.
+- **Minimal reticle cursor**, pointer parallax, and film grain throughout.
 
 ## Layout
 
