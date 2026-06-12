@@ -43,10 +43,24 @@ export class Moon {
   private flash = 0; // transient red from an impact
   private time = 0;
 
+  // Live surface canvases + textures, so impacts can burn real craters in.
+  private readonly colorCtx: CanvasRenderingContext2D;
+  private readonly bumpCtx: CanvasRenderingContext2D;
+  private readonly colorMap: THREE.CanvasTexture;
+  private readonly bumpMap: THREE.CanvasTexture;
+  private readonly texW: number;
+  private readonly texH: number;
+
   constructor() {
     this.group = new THREE.Group();
 
-    const { colorMap, normalMap, bumpMap } = createMoonMaps();
+    const { colorMap, normalMap, bumpMap, colorCtx, bumpCtx, width, height } = createMoonMaps();
+    this.colorCtx = colorCtx;
+    this.bumpCtx = bumpCtx;
+    this.colorMap = colorMap;
+    this.bumpMap = bumpMap;
+    this.texW = width;
+    this.texH = height;
     const material = new THREE.MeshStandardMaterial({
       map: colorMap,
       normalMap,
@@ -99,6 +113,51 @@ export class Moon {
   /** A round lands — the body flinches red, briefly. */
   registerHit(): void {
     this.flash = Math.min(1, this.flash + 0.5);
+  }
+
+  /**
+   * Burn a real crater into the surface at the given UV. Because it's painted
+   * into the moon's own texture, it rotates with the body and slips around the
+   * limb — it sticks to the moon, not the screen.
+   */
+  stampScar(u: number, v: number): void {
+    const W = this.texW;
+    const H = this.texH;
+    const x = u * W;
+    const y = (1 - v) * H;
+    const r = 6 + Math.random() * 8;
+
+    const paint = (cx: number): void => {
+      // Colour: scorched bowl with a slightly brighter blasted rim.
+      const cg = this.colorCtx.createRadialGradient(cx, y, 0, cx, y, r);
+      cg.addColorStop(0, 'rgba(14,13,15,0.92)');
+      cg.addColorStop(0.62, 'rgba(34,30,30,0.8)');
+      cg.addColorStop(0.8, 'rgba(120,112,102,0.5)'); // ejecta rim
+      cg.addColorStop(1, 'rgba(150,142,132,0)');
+      this.colorCtx.fillStyle = cg;
+      this.colorCtx.beginPath();
+      this.colorCtx.arc(cx, y, r, 0, Math.PI * 2);
+      this.colorCtx.fill();
+
+      // Bump: deepen the bowl (dark = low) with a faint raised rim (light).
+      const bg = this.bumpCtx.createRadialGradient(cx, y, 0, cx, y, r);
+      bg.addColorStop(0, 'rgba(0,0,0,0.85)');
+      bg.addColorStop(0.7, 'rgba(0,0,0,0.4)');
+      bg.addColorStop(0.82, 'rgba(255,255,255,0.45)');
+      bg.addColorStop(1, 'rgba(255,255,255,0)');
+      this.bumpCtx.fillStyle = bg;
+      this.bumpCtx.beginPath();
+      this.bumpCtx.arc(cx, y, r, 0, Math.PI * 2);
+      this.bumpCtx.fill();
+    };
+
+    paint(x);
+    // The colour map wraps horizontally — stamp the mirror near the seam.
+    if (x < r) paint(x + W);
+    else if (x > W - r) paint(x - W);
+
+    this.colorMap.needsUpdate = true;
+    this.bumpMap.needsUpdate = true;
   }
 
   update(dt: number): void {

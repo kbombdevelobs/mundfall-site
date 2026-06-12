@@ -25,7 +25,7 @@ new Battle(
   battleCanvas,
   () => stage.getMoonScreen(),
   audio,
-  () => stage.registerHit(),
+  (x, y) => stage.handleImpact(x, y),
 );
 
 // Sound is on by default; the toggle quietly dims when the siege is muted.

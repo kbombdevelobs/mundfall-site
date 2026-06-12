@@ -52,9 +52,21 @@ export class Stage {
     this.renderer.setAnimationLoop(() => this.tick());
   }
 
-  /** Flash the moon when a player round lands. */
-  registerHit(): void {
+  private readonly scratchNdc = new THREE.Vector2();
+
+  /**
+   * A round lands at a screen point: flash the moon and, if the ray meets the
+   * surface, burn a real crater at that UV so it rides the spinning body.
+   */
+  handleImpact(screenX: number, screenY: number): void {
     this.moon.registerHit();
+    this.scratchNdc.set(
+      (screenX / window.innerWidth) * 2 - 1,
+      -(screenY / window.innerHeight) * 2 + 1,
+    );
+    this.raycaster.setFromCamera(this.scratchNdc, this.camera);
+    const hit = this.raycaster.intersectObject(this.moon.hitTarget, false)[0];
+    if (hit && hit.uv) this.moon.stampScar(hit.uv.x, hit.uv.y);
   }
 
   /** The moon's bounding circle in CSS pixels, for the battle overlay. */

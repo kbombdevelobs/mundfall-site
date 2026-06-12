@@ -1,13 +1,12 @@
 /**
- * Bombardment layer — the moon is under fire.
+ * Bombardment layer — the moon is under fire, and the fire follows you.
  *
- * Shells fall in from the dark, streak toward the lunar surface and burst
- * into dust, smoke and soot that ride the moon as it turns. It runs on its
- * own ambiently so the siege never stops; clicking calls a strike down
- * where you point. Deliberately low-key and desaturated — grit, not arcade.
+ * Shells rain in from the dark toward wherever the cursor rests, burst with a
+ * hard flash and kick up slow-rising dust. The lasting craters are burned into
+ * the moon's own surface (see Moon.stampScar) so they ride the spin — this
+ * layer only draws the transient violence: incoming rounds, flash, dust, sparks.
  *
- * 2D canvas layered over the Three.js moon. Reads the moon's on-screen
- * circle each frame so impacts land on the real geometry.
+ * Deliberately desaturated and weighty — artillery, not arcade.
  */
 import type { BattleAudio } from './audio';
 
@@ -20,11 +19,8 @@ export interface MoonScreen {
 
 interface Shell { x: number; y: number; vx: number; vy: number; tx: number; ty: number; trail: number[]; }
 interface Flash { x: number; y: number; age: number; max: number; r: number; }
-interface Dust { x: number; y: number; age: number; max: number; r: number; }
-interface Smoke { x: number; y: number; vx: number; vy: number; age: number; max: number; r: number; }
+interface Dust { x: number; y: number; vx: number; vy: number; age: number; max: number; r: number; }
 interface Spark { x: number; y: number; vx: number; vy: number; life: number; max: number; }
-/** Soot stored in unit-circle space so it rides the moon's spin, then fades. */
-interface Soot { ox: number; oy: number; age: number; max: number; r: number; }
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 
@@ -33,15 +29,13 @@ export class Battle {
   private shells: Shell[] = [];
   private flashes: Flash[] = [];
   private dust: Dust[] = [];
-  private smoke: Smoke[] = [];
   private sparks: Spark[] = [];
-  private soot: Soot[] = [];
 
-  private px = -100;
-  private py = -100;
+  private px = -200;
+  private py = -200;
   private pointerSeen = false;
   private lastTime = performance.now();
-  private salvoTimer = 1.2;
+  private fireTimer = 0.4;
   private moon: MoonScreen = { x: 0, y: 0, r: 1, visible: false };
 
   constructor(
@@ -69,52 +63,44 @@ export class Battle {
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
-  /** Pick a target point on the visible (lit) half of the disc. */
-  private surfacePoint(biasX: number, biasY: number): { x: number; y: number } {
+  /** Where the barrage is aimed: the cursor, pulled onto the lunar disc. */
+  private aimPoint(): { x: number; y: number } {
     const m = this.moon;
-    // Random point inside the disc, nudged toward the bias direction.
-    const a = Math.random() * Math.PI * 2;
-    const rr = Math.sqrt(Math.random()) * m.r * 0.92;
-    let x = m.x + Math.cos(a) * rr;
-    let y = m.y + Math.sin(a) * rr;
-    x = x * 0.7 + biasX * 0.3;
-    y = y * 0.7 + biasY * 0.3;
-    // Clamp back inside the disc.
-    const dx = x - m.x, dy = y - m.y;
-    const d = Math.hypot(dx, dy);
-    if (d > m.r * 0.92) {
-      x = m.x + (dx / d) * m.r * 0.92;
-      y = m.y + (dy / d) * m.r * 0.92;
+    if (!this.pointerSeen) {
+      // Before the visitor takes the controls, the siege roams the surface.
+      const a = Math.random() * Math.PI * 2;
+      const rr = Math.sqrt(Math.random()) * m.r * 0.85;
+      return { x: m.x + Math.cos(a) * rr, y: m.y + Math.sin(a) * rr };
     }
-    return { x, y };
-  }
-
-  /** Launch a shell from off-screen toward a surface point. */
-  private dropShell(tx: number, ty: number): void {
-    // Origin: above and to one side, off-screen, so it streaks down/in.
-    const side = Math.random() < 0.5 ? -1 : 1;
-    const ox = tx + side * (200 + Math.random() * 380);
-    const oy = ty - (window.innerHeight * 0.6 + Math.random() * 260);
-    let dx = tx - ox, dy = ty - oy;
+    let dx = this.px - m.x;
+    let dy = this.py - m.y;
     const d = Math.hypot(dx, dy) || 1;
-    dx /= d; dy /= d;
-    const speed = 1100 + Math.random() * 500;
-    this.shells.push({ x: ox, y: oy, vx: dx * speed, vy: dy * speed, tx, ty, trail: [] });
+    const rr = Math.min(d, m.r * 0.9);
+    return { x: m.x + (dx / d) * rr, y: m.y + (dy / d) * rr };
   }
 
+  /** Lob a shell in from off-screen above, toward a surface point. */
+  private dropShell(tx: number, ty: number): void {
+    // Rounds rain from high above with a consistent lean — a battery overhead,
+    // not random fireworks. A little horizontal scatter keeps it alive.
+    const ox = tx + (Math.random() - 0.5) * 120 - 60;
+    const oy = ty - (window.innerHeight * 0.7 + Math.random() * 220);
+    let dx = tx - ox;
+    let dy = ty - oy;
+    const d = Math.hypot(dx, dy) || 1;
+    const speed = 1500 + Math.random() * 500;
+    this.shells.push({ x: ox, y: oy, vx: (dx / d) * speed, vy: (dy / d) * speed, tx, ty, trail: [] });
+  }
+
+  /** Click: concentrate a heavier cluster on the cursor. */
   private callStrike(x: number, y: number): void {
     this.px = x; this.py = y; this.pointerSeen = true;
     if (!this.moon.visible) return;
-    // Aim a tight cluster around the cursor, pulled onto the disc.
-    const m = this.moon;
-    let dx = x - m.x, dy = y - m.y;
-    const d = Math.hypot(dx, dy) || 1;
-    const rr = Math.min(d, m.r * 0.9);
-    const cx = m.x + (dx / d) * rr;
-    const cy = m.y + (dy / d) * rr;
-    const n = 2 + Math.floor(Math.random() * 2);
+    const aim = this.aimPoint();
+    const spread = this.moon.r * 0.22;
+    const n = 4 + Math.floor(Math.random() * 3);
     for (let i = 0; i < n; i++) {
-      this.dropShell(cx + (Math.random() - 0.5) * m.r * 0.3, cy + (Math.random() - 0.5) * m.r * 0.3);
+      this.dropShell(aim.x + (Math.random() - 0.5) * spread, aim.y + (Math.random() - 0.5) * spread);
     }
   }
 
@@ -128,24 +114,19 @@ export class Battle {
   }
 
   private step(dt: number): void {
-    // Ambient salvos — sparse, irregular, cinematic. The siege never stops.
-    this.salvoTimer -= dt;
-    if (this.salvoTimer <= 0 && this.moon.visible) {
-      const p = this.surfacePoint(this.moon.x, this.moon.y);
-      this.dropShell(p.x, p.y);
-      if (Math.random() < 0.35) {
-        const q = this.surfacePoint(this.moon.x, this.moon.y);
-        this.dropShell(q.x, q.y);
-      }
-      this.salvoTimer = 0.5 + Math.random() * 1.3;
+    // Continuous fire toward the cursor — steady, weighty, never stops.
+    this.fireTimer -= dt;
+    if (this.fireTimer <= 0 && this.moon.visible) {
+      const aim = this.aimPoint();
+      const jitter = this.moon.r * 0.12;
+      this.dropShell(aim.x + (Math.random() - 0.5) * jitter, aim.y + (Math.random() - 0.5) * jitter);
+      this.fireTimer = 0.22 + Math.random() * 0.22;
     }
 
     this.stepShells(dt);
     this.stepTimed(this.flashes, dt);
-    this.stepTimed(this.dust, dt);
-    this.stepSmoke(dt);
+    this.stepDust(dt);
     this.stepSparks(dt);
-    this.stepTimed(this.soot, dt);
   }
 
   private stepShells(dt: number): void {
@@ -153,8 +134,8 @@ export class Battle {
       const s = this.shells[i];
       s.x += s.vx * dt; s.y += s.vy * dt;
       s.trail.push(s.x, s.y);
-      if (s.trail.length > 14) s.trail.splice(0, s.trail.length - 14);
-      if (Math.hypot(s.tx - s.x, s.ty - s.y) < 16 || (s.vy > 0 && s.y > s.ty)) {
+      if (s.trail.length > 10) s.trail.splice(0, s.trail.length - 10);
+      if (Math.hypot(s.tx - s.x, s.ty - s.y) < 18 || (s.vy > 0 && s.y > s.ty)) {
         this.impact(s.tx, s.ty);
         this.shells.splice(i, 1);
       }
@@ -162,27 +143,27 @@ export class Battle {
   }
 
   private impact(x: number, y: number): void {
-    const m = this.moon;
-    const scale = m.visible ? m.r : 120;
-    this.flashes.push({ x, y, age: 0, max: 0.16, r: scale * 0.12 });
-    this.dust.push({ x, y, age: 0, max: 0.9, r: scale * 0.22 });
-    for (let k = 0; k < 5; k++) {
-      this.smoke.push({
-        x, y, vx: (Math.random() - 0.5) * 26, vy: -10 - Math.random() * 22,
-        age: 0, max: 1.6 + Math.random() * 1.4, r: scale * (0.08 + Math.random() * 0.08),
+    const scale = this.moon.visible ? this.moon.r : 120;
+    // Hard, brief flash.
+    this.flashes.push({ x, y, age: 0, max: 0.11, r: scale * 0.07 });
+    // Slow-rising dust column — the lingering, cinematic part.
+    for (let k = 0; k < 6; k++) {
+      const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.2;
+      const sp = 18 + Math.random() * 46;
+      this.dust.push({
+        x: x + (Math.random() - 0.5) * scale * 0.1,
+        y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        age: 0, max: 1.6 + Math.random() * 1.6, r: scale * (0.05 + Math.random() * 0.06),
       });
     }
-    for (let k = 0; k < 10; k++) {
+    // A few dim ejecta sparks.
+    for (let k = 0; k < 6; k++) {
       const a = Math.random() * Math.PI * 2;
-      const sp = 70 + Math.random() * 200;
-      this.sparks.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 30, life: 0.3 + Math.random() * 0.4, max: 0.7 });
-    }
-    if (m.visible) {
-      this.soot.push({ ox: (x - m.x) / m.r, oy: (y - m.y) / m.r, age: 0, max: 9, r: 0.1 + Math.random() * 0.05 });
-      if (this.soot.length > 26) this.soot.shift();
+      const sp = 50 + Math.random() * 150;
+      this.sparks.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 30, life: 0.25 + Math.random() * 0.3, max: 0.55 });
     }
     this.audio.impact(clamp((x / window.innerWidth) * 2 - 1, -1, 1));
-    this.onHit(x, y);
+    this.onHit(x, y); // burns the lasting crater into the moon's surface
   }
 
   private stepTimed(arr: Array<{ age: number; max: number }>, dt: number): void {
@@ -192,12 +173,12 @@ export class Battle {
     }
   }
 
-  private stepSmoke(dt: number): void {
-    for (let i = this.smoke.length - 1; i >= 0; i--) {
-      const s = this.smoke[i];
-      s.age += dt;
-      if (s.age >= s.max) { this.smoke.splice(i, 1); continue; }
-      s.x += s.vx * dt; s.y += s.vy * dt; s.vx *= 1 - 0.5 * dt; s.vy *= 1 - 0.3 * dt;
+  private stepDust(dt: number): void {
+    for (let i = this.dust.length - 1; i >= 0; i--) {
+      const d = this.dust[i];
+      d.age += dt;
+      if (d.age >= d.max) { this.dust.splice(i, 1); continue; }
+      d.x += d.vx * dt; d.y += d.vy * dt; d.vx *= 1 - 0.5 * dt; d.vy *= 1 - 0.4 * dt;
     }
   }
 
@@ -206,7 +187,7 @@ export class Battle {
       const s = this.sparks[i];
       s.life -= dt;
       if (s.life <= 0) { this.sparks.splice(i, 1); continue; }
-      s.x += s.vx * dt; s.y += s.vy * dt; s.vy += 140 * dt; s.vx *= 1 - 0.7 * dt;
+      s.x += s.vx * dt; s.y += s.vy * dt; s.vy += 150 * dt; s.vx *= 1 - 0.7 * dt;
     }
   }
 
@@ -216,11 +197,10 @@ export class Battle {
     const ctx = this.ctx;
     ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
-    this.drawSoot(ctx);
-    this.drawSmoke(ctx);
+    // Dust is smoke — soft, opaque-ish, drawn straight.
+    this.drawDust(ctx);
 
     ctx.globalCompositeOperation = 'lighter';
-    this.drawDust(ctx);
     this.drawShells(ctx);
     this.drawSparks(ctx);
     this.drawFlashes(ctx);
@@ -229,56 +209,14 @@ export class Battle {
     if (this.pointerSeen) this.drawReticle(ctx);
   }
 
-  private drawSoot(ctx: CanvasRenderingContext2D): void {
-    const m = this.moon;
-    if (!m.visible) return;
-    for (const s of this.soot) {
-      const x = m.x + s.ox * m.r;
-      const y = m.y + s.oy * m.r;
-      const rr = s.r * m.r;
-      const fade = 1 - s.age / s.max;
-      // Charred crater centre.
-      const g = ctx.createRadialGradient(x, y, 0, x, y, rr);
-      g.addColorStop(0, `rgba(6,6,8,${0.6 * fade})`);
-      g.addColorStop(0.65, `rgba(18,14,14,${0.32 * fade})`);
-      g.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(x, y, rr, 0, Math.PI * 2);
-      ctx.fill();
-      // Faint blasted ejecta rim so the scar reads on the dark surface.
-      ctx.strokeStyle = `rgba(196,188,176,${0.16 * fade})`;
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.arc(x, y, rr * 0.82, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-  }
-
-  private drawSmoke(ctx: CanvasRenderingContext2D): void {
-    for (const s of this.smoke) {
-      const t = s.age / s.max;
-      const r = s.r * (0.6 + t * 1.8);
-      const a = (1 - t) * 0.22;
-      const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, r);
-      g.addColorStop(0, `rgba(60,58,56,${a})`);
-      g.addColorStop(1, 'rgba(20,20,22,0)');
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
   private drawDust(ctx: CanvasRenderingContext2D): void {
     for (const d of this.dust) {
       const t = d.age / d.max;
-      const r = d.r * (0.4 + t * 1.6);
-      const a = (1 - t) * 0.5;
+      const r = d.r * (0.5 + t * 2.0);
+      const a = (1 - t) * (1 - t) * 0.3;
       const g = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, r);
-      g.addColorStop(0, `rgba(190,182,170,${a})`);
-      g.addColorStop(0.5, `rgba(150,140,128,${a * 0.4})`);
-      g.addColorStop(1, 'rgba(120,110,100,0)');
+      g.addColorStop(0, `rgba(86,82,78,${a})`);
+      g.addColorStop(1, 'rgba(30,28,28,0)');
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.arc(d.x, d.y, r, 0, Math.PI * 2);
@@ -289,8 +227,9 @@ export class Battle {
   private drawShells(ctx: CanvasRenderingContext2D): void {
     ctx.lineCap = 'round';
     for (const s of this.shells) {
-      ctx.strokeStyle = 'rgba(220,206,180,0.5)';
-      ctx.lineWidth = 1.4;
+      // Dim, fast streak — barely warm, no glowing bullet.
+      ctx.strokeStyle = 'rgba(208,198,178,0.32)';
+      ctx.lineWidth = 1;
       ctx.beginPath();
       for (let i = 0; i < s.trail.length; i += 2) {
         const x = s.trail[i], y = s.trail[i + 1];
@@ -298,9 +237,9 @@ export class Battle {
       }
       ctx.lineTo(s.x, s.y);
       ctx.stroke();
-      ctx.fillStyle = 'rgba(255,238,206,0.9)';
+      ctx.fillStyle = 'rgba(255,244,222,0.55)';
       ctx.beginPath();
-      ctx.arc(s.x, s.y, 1.6, 0, Math.PI * 2);
+      ctx.arc(s.x, s.y, 1.1, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -308,9 +247,9 @@ export class Battle {
   private drawSparks(ctx: CanvasRenderingContext2D): void {
     for (const s of this.sparks) {
       const t = s.life / s.max;
-      ctx.fillStyle = `rgba(240,205,150,${t * 0.8})`;
+      ctx.fillStyle = `rgba(226,202,162,${t * 0.7})`;
       ctx.beginPath();
-      ctx.arc(s.x, s.y, 1.2 * t + 0.3, 0, Math.PI * 2);
+      ctx.arc(s.x, s.y, 1.0 * t + 0.3, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -318,12 +257,12 @@ export class Battle {
   private drawFlashes(ctx: CanvasRenderingContext2D): void {
     for (const f of this.flashes) {
       const t = f.age / f.max;
-      const r = f.r * (0.5 + t * 1.2);
+      const r = f.r * (0.6 + t * 0.9);
       const a = 1 - t;
       const g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, r);
-      g.addColorStop(0, `rgba(255,250,235,${a})`);
-      g.addColorStop(0.5, `rgba(255,210,150,${a * 0.5})`);
-      g.addColorStop(1, 'rgba(200,120,60,0)');
+      g.addColorStop(0, `rgba(255,250,238,${a})`);
+      g.addColorStop(0.5, `rgba(240,214,170,${a * 0.45})`);
+      g.addColorStop(1, 'rgba(200,150,90,0)');
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.arc(f.x, f.y, r, 0, Math.PI * 2);
@@ -331,10 +270,10 @@ export class Battle {
     }
   }
 
-  /** Minimal cursor — a thin, quiet reticle. No labels, no chrome. */
+  /** Minimal cursor — a thin, quiet reticle marking where fire concentrates. */
   private drawReticle(ctx: CanvasRenderingContext2D): void {
     const x = this.px, y = this.py;
-    ctx.strokeStyle = 'rgba(214,210,198,0.35)';
+    ctx.strokeStyle = 'rgba(214,210,198,0.4)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.arc(x, y, 9, 0, Math.PI * 2);
@@ -346,7 +285,7 @@ export class Battle {
       ctx.lineTo(x + dx, y + dy);
     }
     ctx.stroke();
-    ctx.fillStyle = 'rgba(214,210,198,0.5)';
+    ctx.fillStyle = 'rgba(214,210,198,0.55)';
     ctx.fillRect(x - 0.5, y - 0.5, 1, 1);
   }
 }

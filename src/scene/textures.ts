@@ -60,6 +60,11 @@ export interface MoonMaps {
   colorMap: THREE.CanvasTexture;
   normalMap: THREE.CanvasTexture;
   bumpMap: THREE.CanvasTexture;
+  /** Live canvases + dimensions, so impacts can stamp real craters in. */
+  colorCtx: CanvasRenderingContext2D;
+  bumpCtx: CanvasRenderingContext2D;
+  width: number;
+  height: number;
 }
 
 export function createMoonMaps(seed = 0x5eed): MoonMaps {
@@ -230,7 +235,7 @@ export function createMoonMaps(seed = 0x5eed): MoonMaps {
   const bumpMap = new THREE.CanvasTexture(bumpCanvas);
   bumpMap.wrapS = THREE.RepeatWrapping;
 
-  return { colorMap, normalMap, bumpMap };
+  return { colorMap, normalMap, bumpMap, colorCtx, bumpCtx, width: W, height: H };
 }
 
 /** Soft radial gradient sprite used for the atmospheric dust halo. */
