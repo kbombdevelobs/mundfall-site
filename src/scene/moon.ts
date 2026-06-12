@@ -12,7 +12,11 @@ import { createMoonMaps, createGlowSprite } from './textures';
 
 const BASE_SPIN = 0.04;
 const HOVER_SPIN = 0.11;
-const ECLIPSE_SECONDS = 5.5;
+// Eclipse envelope: swell in, hold full red, then recede.
+const ECLIPSE_ATTACK = 1.6;
+const ECLIPSE_HOLD = 6.0;
+const ECLIPSE_RELEASE = 2.6;
+const ECLIPSE_TOTAL = ECLIPSE_ATTACK + ECLIPSE_HOLD + ECLIPSE_RELEASE;
 
 // Sun rest values — kept in sync with Stage so the eclipse can restore them.
 const SUN_COLOR = '#fbf3e4';
@@ -218,13 +222,21 @@ export class Moon {
       }
     }
 
-    // Eclipse: a bell-curve swell over ECLIPSE_SECONDS. The ONLY red source.
+    // Eclipse: swell in, HOLD at full red, then recede. The ONLY red source.
     let s = 0;
     if (this.eclipseT >= 0) {
       this.eclipseT += dt;
-      const t = this.eclipseT / ECLIPSE_SECONDS;
-      if (t >= 1) this.eclipseT = -1;
-      else s = Math.pow(Math.sin(t * Math.PI), 1.1);
+      const e = this.eclipseT;
+      if (e >= ECLIPSE_TOTAL) {
+        this.eclipseT = -1;
+      } else if (e < ECLIPSE_ATTACK) {
+        s = Math.sin((e / ECLIPSE_ATTACK) * (Math.PI / 2)); // ease 0 → 1
+      } else if (e < ECLIPSE_ATTACK + ECLIPSE_HOLD) {
+        s = 1; // hold full red
+      } else {
+        const r = (e - ECLIPSE_ATTACK - ECLIPSE_HOLD) / ECLIPSE_RELEASE;
+        s = Math.sin((1 - r) * (Math.PI / 2)); // ease 1 → 0
+      }
     }
 
     // Sun sinks toward a dim blood red — the moon falls into shadow.
