@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mundfall — The Mund Awaits</title>
+    <meta name="description" content="Mundfall. The Mund Awaits. A dark descent — coming soon." />
+    <meta property="og:title" content="Mundfall — The Mund Awaits" />
+    <meta property="og:description" content="A dark descent. The Mund Awaits." />
+    <meta property="og:type" content="website" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;800&family=UnifrakturCook:wght@700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+    <canvas id="dust"></canvas>
+
+    <main id="ui">
+      <header class="topbar">
+        <span class="mark">MUNDFALL</span>
+      </header>
+
+      <section class="hero">
+        <h1 class="title" data-reveal>The Mund Awaits</h1>
+        <p class="sub" data-reveal>A descent into the dark. Coming soon.</p>
+
+        <nav class="links" data-reveal>
+          <!-- TODO: replace with real Mundfall social URLs when live -->
+          <a class="link" href="https://twitter.com/mundfall" target="_blank" rel="noopener noreferrer">
+            <span class="link-glyph">𝕏</span>
+            <span>Follow</span>
+          </a>
+          <!-- TODO: replace with the real Steam store page once it exists -->
+          <a class="link" href="https://store.steampowered.com/" target="_blank" rel="noopener noreferrer">
+            <span class="link-glyph">▶</span>
+            <span>Wishlist on Steam</span>
+          </a>
+        </nav>
+      </section>
+
+      <footer class="footer">
+        <span>© <span id="year"></span> Mundfall</span>
+        <span class="hint">move your cursor · the moon listens</span>
+      </footer>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
