@@ -35,15 +35,16 @@ soundToggle.addEventListener('click', () => {
   soundToggle.setAttribute('aria-pressed', String(on));
 });
 
-// Every strike stamps the rally cry over the red eclipse. Ignore clicks that
-// land on the actual links/buttons.
+// Every strike throws the whole moon into a blood-red eclipse and drops the
+// rally banner. Ignore clicks that land on the actual links/buttons.
 let rallyTimer: number | undefined;
 window.addEventListener('pointerdown', (e) => {
   const t = e.target as HTMLElement | null;
   if (t && typeof t.closest === 'function' && t.closest('a, button')) return;
+  stage.triggerEclipse();
   rally.classList.remove('is-firing');
   void rally.offsetWidth; // force reflow so the animation restarts
   rally.classList.add('is-firing');
   window.clearTimeout(rallyTimer);
-  rallyTimer = window.setTimeout(() => rally.classList.remove('is-firing'), 1500);
+  rallyTimer = window.setTimeout(() => rally.classList.remove('is-firing'), 1700);
 });

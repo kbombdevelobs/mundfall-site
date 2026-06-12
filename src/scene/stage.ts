@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { Moon } from './moon';
 import { Starfield } from './starfield';
+import { Debris } from './debris';
 import type { MoonScreen } from '../fx/battle';
 
 export class Stage {
@@ -15,6 +16,7 @@ export class Stage {
   private readonly camera: THREE.PerspectiveCamera;
   private readonly moon = new Moon();
   private readonly stars = new Starfield();
+  private readonly debris = new Debris();
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2(0, 0);
   private readonly clock = new THREE.Clock();
@@ -43,7 +45,7 @@ export class Stage {
     const ambient = new THREE.AmbientLight('#070b14', 0.35);
 
     this.moon.group.position.y = this.baseY;
-    this.scene.add(sun, earthshine, ambient, this.moon.group, this.stars.group);
+    this.scene.add(sun, earthshine, ambient, this.moon.group, this.stars.group, this.debris.group);
 
     this.resize();
     window.addEventListener('resize', () => this.resize());
@@ -53,10 +55,12 @@ export class Stage {
   }
 
   private readonly scratchNdc = new THREE.Vector2();
+  private readonly scratchCenter = new THREE.Vector3();
 
   /**
    * A round lands at a screen point: flash the moon and, if the ray meets the
-   * surface, burn a real crater at that UV so it rides the spinning body.
+   * surface, burn a real crater at that UV (so it rides the spinning body) and
+   * throw real 3D rubble off the impact point.
    */
   handleImpact(screenX: number, screenY: number): void {
     this.moon.registerHit();
@@ -66,7 +70,17 @@ export class Stage {
     );
     this.raycaster.setFromCamera(this.scratchNdc, this.camera);
     const hit = this.raycaster.intersectObject(this.moon.hitTarget, false)[0];
-    if (hit && hit.uv) this.moon.stampScar(hit.uv.x, hit.uv.y);
+    if (!hit) return;
+    if (hit.uv) this.moon.stampScar(hit.uv.x, hit.uv.y);
+    if (Math.random() < 0.6) {
+      const outward = hit.point.clone().sub(this.moon.getWorldCenter(this.scratchCenter));
+      this.debris.spawn(hit.point, outward);
+    }
+  }
+
+  /** Click: throw the whole moon into a full blood-red eclipse. */
+  triggerEclipse(): void {
+    this.moon.triggerEclipse();
   }
 
   /** The moon's bounding circle in CSS pixels, for the battle overlay. */
@@ -124,6 +138,7 @@ export class Stage {
     this.moon.group.position.y = this.baseY + Math.sin(time * 0.25) * 0.05;
 
     this.moon.update(dt);
+    this.debris.update(dt);
     this.stars.update(time);
     this.renderer.render(this.scene, this.camera);
   }

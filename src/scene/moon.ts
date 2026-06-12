@@ -40,7 +40,8 @@ export class Moon {
   private readonly atmosphere: THREE.ShaderMaterial;
   private spinSpeed = BASE_SPIN;
   private hovered = false;
-  private flash = 0; // transient red from an impact
+  private flash = 0; // small per-impact ember
+  private eclipse = 0; // full blood eclipse, triggered on a strike
   private time = 0;
 
   // Live surface canvases + textures, so impacts can burn real craters in.
@@ -122,7 +123,12 @@ export class Moon {
 
   /** A round lands — the body flinches red, briefly. */
   registerHit(): void {
-    this.flash = Math.min(1, this.flash + 0.5);
+    this.flash = Math.min(1, this.flash + 0.4);
+  }
+
+  /** A strike: drown the whole moon — lit face and dark limb — in blood red. */
+  triggerEclipse(): void {
+    this.eclipse = 1;
   }
 
   /**
@@ -183,6 +189,7 @@ export class Moon {
     this.spinSpeed = THREE.MathUtils.damp(this.spinSpeed, target, 2.5, dt);
     this.sphere.rotation.y += this.spinSpeed * dt;
     this.flash = Math.max(0, this.flash - dt * 0.9);
+    this.eclipse = Math.max(0, this.eclipse - dt * 0.3); // ~3.3s full eclipse
 
     // Age + heal scars; re-composite the surface a few times a second.
     if (this.scars.length > 0) {
@@ -197,20 +204,24 @@ export class Moon {
       }
     }
 
-    // Slow ambient blood-shadow eclipse — recurs roughly every ~70s, mostly
-    // low. Combined with any impact flash, this is the only red in the scene.
-    const e = Math.pow(Math.max(0, Math.sin(this.time * 0.045)), 3) * 0.45;
-    const red = Math.min(1, e + this.flash);
+    // Slow ambient blood-shadow that recurs roughly every ~70s, mostly low.
+    const ambient = Math.pow(Math.max(0, Math.sin(this.time * 0.045)), 3) * 0.4;
+    const ecl = this.eclipse;
+    const red = Math.min(1, Math.max(ambient, this.flash, ecl));
 
     const atmoColor = this.atmosphere.uniforms.uColor.value as THREE.Color;
-    atmoColor.set('#2a3344').lerp(new THREE.Color('#3a0c08'), red);
-    this.atmosphere.uniforms.uIntensity.value = 0.32 + red * 0.7;
+    atmoColor.set('#2a3344').lerp(new THREE.Color('#5a0c06'), red);
+    this.atmosphere.uniforms.uIntensity.value = 0.32 + red * 1.5;
 
-    // The eclipse dims the lit face; impacts push a faint ember into it —
-    // restrained, so craters stay legible even under a sustained barrage.
-    const base = new THREE.Color('#aeb0b4').multiplyScalar(1 - e * 0.4);
-    this.sphere.material.color.copy(base).lerp(new THREE.Color('#6a2418'), this.flash * 0.3);
-    (this.sphere.material.emissive as THREE.Color).set('#0a0e16').lerp(new THREE.Color('#220804'), red);
-    this.sphere.material.emissiveIntensity = 0.35 + this.flash * 0.35;
+    // Lit face bleeds deep red; a strike pushes it all the way over.
+    const base = new THREE.Color('#aeb0b4').multiplyScalar(1 - ambient * 0.35);
+    const surfaceRed = Math.max(this.flash * 0.4, ecl * 0.9);
+    this.sphere.material.color.copy(base).lerp(new THREE.Color('#5e1410'), surfaceRed);
+
+    // High red emissive on eclipse makes the WHOLE disc glow — even the dark
+    // limb — so a strike truly bathes the entire moon in blood red.
+    const emRed = Math.max(ambient * 0.4, this.flash * 0.5, ecl);
+    (this.sphere.material.emissive as THREE.Color).set('#0a0e16').lerp(new THREE.Color('#7a1006'), emRed);
+    this.sphere.material.emissiveIntensity = 0.35 + this.flash * 0.4 + ecl * 1.9;
   }
 }

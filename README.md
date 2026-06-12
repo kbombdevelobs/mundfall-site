@@ -34,16 +34,21 @@ the favicon is inline SVG, and all audio is synthesized with WebAudio.
 - **Bombardment that tracks the cursor** — fire concentrates wherever you
   point; off the moon it scatters across the surface. Shells streak in, flash,
   throw dust and drifting smoke.
+- **Full blood eclipse on click** — a strike drowns the whole moon, lit face
+  and dark limb alike, in deep red (strong red emissive), then it recovers
+  over a few seconds.
 - **Real, healing craters** — each impact burns a crater into the moon's own
   texture (so it rides the spin and slips around the limb), then heals very
   slowly over the following minute.
-- **Free-floating rubble** — chunks blown off the moon tumble away into space
-  at near-zero gravity and drift off screen.
-- **Rally cry** — every strike stamps "The Mund Needs YOU, Soldaten!" in
-  dark-red blackletter over the eclipse, with a glitch/shake.
-- **Prussian march** — a fully synthesized martial loop (kick, snare, oom-pah
-  brass + a minor-key motif) under a low space rumble and gritty impact booms.
-  Sound is on by default; a minimal toggle mutes it.
+- **Real 3D rubble** — chunks are blown off as faceted low-poly rocks in the
+  scene, lit by the same sun as the moon, tumbling away into space at near-zero
+  gravity. Hard-capped (14): new shards only spawn once old ones cycle out.
+- **Rally banner** — every strike drops a legible ribbon above the moon:
+  "The Mund Needs YOU, Soldaten!".
+- **Space-age synth bed** — an evolving detuned pad through a sweeping filter
+  and feedback delay, a pulsing sub thrum, and an airy shimmer, drifting
+  through a slow chord progression. No rhythm — just cinematic space, over
+  gritty impact booms. Sound is on by default; a minimal toggle mutes it.
 - **Minimal reticle cursor**, pointer parallax, and film grain throughout.
 
 ## Layout
