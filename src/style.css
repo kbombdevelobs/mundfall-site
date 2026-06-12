@@ -3,38 +3,111 @@
 @tailwind utilities;
 
 ::selection {
-  background: theme('colors.blood');
+  background: #3a0c08;
   color: theme('colors.bone');
 }
 
+/* The custom reticle replaces the system pointer. */
+html,
 body {
-  cursor: crosshair;
+  cursor: none;
 }
 
-/* Keep supporting copy legible where it overlaps the bright moon */
-main p,
-main h1 {
-  text-shadow: 0 1px 16px rgba(4, 4, 8, 0.95), 0 0 36px rgba(4, 4, 8, 0.7);
-}
-
-/* Soft cinematic vignette over everything */
-.vignette {
+/* Near-black void. The faintest cold wash, nothing colourful. */
+body {
   background:
-    radial-gradient(ellipse at center, transparent 45%, rgba(4, 4, 8, 0.55) 80%, rgba(2, 2, 5, 0.92) 100%);
+    radial-gradient(ellipse 70% 55% at 50% 30%, rgba(18, 22, 34, 0.5), transparent 70%),
+    #030308;
 }
 
-/* Staggered rise-from-the-dark reveal for hero copy */
+/* Keep type readable over the lit moon without lighting it up. */
+.wordmark,
+.tagline {
+  text-shadow: 0 2px 26px rgba(2, 3, 8, 0.95), 0 0 60px rgba(2, 3, 8, 0.8);
+}
+
+/* The game name — restrained blackletter, no neon glow. */
+.wordmark {
+  font-size: clamp(3.2rem, 9vw, 7rem);
+  line-height: 0.92;
+  letter-spacing: 0.015em;
+  color: #d7d2c4;
+}
+
+.tagline {
+  margin-top: 1.1rem;
+  font-size: clamp(0.6rem, 1.5vw, 0.78rem);
+  font-weight: 500;
+  letter-spacing: 0.52em;
+  text-transform: uppercase;
+  color: theme('colors.ash');
+  opacity: 0.8;
+  padding-left: 0.52em; /* optical centring for the tracked caps */
+}
+
+/* Quiet links — equal weight, no shouting CTA. */
+.link {
+  font-size: 0.62rem;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: theme('colors.ash');
+  background: none;
+  border: 0;
+  transition: color 0.4s ease;
+}
+.link:hover {
+  color: theme('colors.bone');
+}
+.link[aria-pressed='false'] {
+  opacity: 0.45;
+}
+.dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 9999px;
+  background: theme('colors.ash');
+  opacity: 0.4;
+}
+
+/* Cinematic vignette — strong, to seat the scene in darkness. */
+.vignette {
+  background: radial-gradient(
+    ellipse at 50% 42%,
+    transparent 38%,
+    rgba(2, 3, 8, 0.55) 78%,
+    rgba(0, 0, 2, 0.96) 100%
+  );
+}
+
+/* Film grain for grit. Subtle, lightly animated. */
+.grain {
+  z-index: 5;
+  opacity: 0.055;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+  animation: grain 0.5s steps(3) infinite;
+}
+
+@keyframes grain {
+  0% { transform: translate(0, 0); }
+  33% { transform: translate(-4%, 3%); }
+  66% { transform: translate(3%, -2%); }
+  100% { transform: translate(0, 0); }
+}
+
+/* Slow rise-from-the-dark for the type. */
 .reveal {
   opacity: 0;
-  animation: rise 1.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: rise 2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   animation-delay: var(--delay, 0s);
 }
 
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(1.2rem);
-    filter: blur(8px);
+    transform: translateY(0.9rem);
+    filter: blur(7px);
   }
   to {
     opacity: 1;
@@ -43,69 +116,12 @@ main h1 {
   }
 }
 
-/* Candle-like breathing glow on the title */
-.title-glow {
-  text-shadow:
-    0 0 18px rgba(230, 225, 211, 0.22),
-    0 0 70px rgba(164, 22, 26, 0.18);
-  animation: rise 1.8s cubic-bezier(0.16, 1, 0.3, 1) forwards,
-    breathe 7s ease-in-out 2.6s infinite;
-}
-
-@keyframes breathe {
-  0%,
-  100% {
-    text-shadow:
-      0 0 18px rgba(230, 225, 211, 0.22),
-      0 0 70px rgba(164, 22, 26, 0.18);
-  }
-  50% {
-    text-shadow:
-      0 0 26px rgba(230, 225, 211, 0.34),
-      0 0 90px rgba(164, 22, 26, 0.34);
-  }
-}
-
-/* During an eclipse the title bleeds red */
-.title-eclipsed {
-  color: theme('colors.ember');
-  text-shadow:
-    0 0 22px rgba(229, 56, 59, 0.55),
-    0 0 90px rgba(164, 22, 26, 0.6) !important;
-  transition: color 0.8s ease;
-}
-
-/* Underline-from-center hover on links */
-.social-link {
-  position: relative;
-  padding-bottom: 0.35rem;
-  transition: color 0.4s ease;
-}
-
-.social-link::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  bottom: 0;
-  width: 0;
-  height: 1px;
-  background: theme('colors.ember');
-  transition: width 0.4s ease, left 0.4s ease;
-}
-
-.social-link:hover {
-  color: theme('colors.bone');
-}
-
-.social-link:hover::after {
-  left: 0;
-  width: 100%;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .reveal,
-  .title-glow {
+  .reveal {
     animation: none;
     opacity: 1;
+  }
+  .grain {
+    animation: none;
   }
 }

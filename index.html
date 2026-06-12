@@ -3,92 +3,46 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Mundfall — the Mund awaits. A dark rite beneath a dying moon." />
-    <meta name="theme-color" content="#06060a" />
-    <title>Mundfall — The Mund Awaits</title>
+    <meta name="description" content="Mundfall — the Mund awaits." />
+    <meta name="theme-color" content="#030308" />
+    <title>Mundfall</title>
+    <meta property="og:title" content="Mundfall" />
+    <meta property="og:description" content="The Mund awaits." />
+    <meta property="og:type" content="website" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=Cinzel:wght@400;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=UnifrakturCook:wght@700&family=Cinzel:wght@400;500&display=swap"
       rel="stylesheet"
     />
     <link
       rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='12' fill='%23e6e1d3'/%3E%3Ccircle cx='20' cy='14' r='10' fill='%2306060a'/%3E%3C/svg%3E"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='12' fill='%23b9b4a6'/%3E%3Ccircle cx='21' cy='13' r='10' fill='%23030308'/%3E%3C/svg%3E"
     />
   </head>
   <body class="h-full overflow-hidden bg-void text-bone antialiased">
-    <!-- Three.js scene: moon, starfield, parallax -->
+    <!-- Three.js scene: moon, deep starfield, parallax -->
     <canvas id="scene" class="fixed inset-0 h-full w-full" aria-hidden="true"></canvas>
-    <!-- 2D overlay: cursor ash trail -->
-    <canvas id="ash" class="pointer-events-none fixed inset-0 h-full w-full" aria-hidden="true"></canvas>
-    <!-- Vignette -->
+    <!-- 2D bombardment overlay: shells, dust, smoke, soot, reticle -->
+    <canvas id="battle" class="pointer-events-none fixed inset-0 h-full w-full" aria-hidden="true"></canvas>
+    <!-- Film grain + cinematic vignette -->
+    <div class="grain pointer-events-none fixed inset-0" aria-hidden="true"></div>
     <div class="vignette pointer-events-none fixed inset-0" aria-hidden="true"></div>
 
-    <main class="pointer-events-none relative z-10 flex h-full flex-col items-center justify-between px-6 py-10 text-center">
-      <header class="reveal" style="--delay: 0.2s">
-        <p class="font-rite text-[0.65rem] uppercase tracking-rite text-ash sm:text-xs">
-          Ein Spiel in Dunkelheit
-        </p>
-      </header>
+    <main class="pointer-events-none relative z-10 flex h-full flex-col items-center justify-end px-8 pb-10 text-center">
+      <h1 class="reveal wordmark font-fraktur" style="--delay: 0.6s">Mundfall</h1>
+      <p class="reveal tagline font-rite" style="--delay: 1.4s">The Mund Awaits</p>
 
-      <section class="mt-auto">
-        <h1
-          id="title"
-          class="reveal font-fraktur text-6xl leading-none text-bone title-glow sm:text-8xl"
-          style="--delay: 0.8s"
-        >
-          The Mund Awaits
-        </h1>
-        <p
-          id="tagline"
-          class="reveal mt-6 font-rite text-[0.7rem] uppercase tracking-rite text-ash sm:text-sm"
-          style="--delay: 1.6s"
-        >
-          When the moon falls, the rite begins
-        </p>
-        <p class="reveal mt-10 font-rite text-[0.6rem] uppercase tracking-rite text-blood sm:text-xs" style="--delay: 2.4s">
-          Mundfall &mdash; MMXXVI
-        </p>
-      </section>
-
-      <footer class="reveal mt-auto flex w-full items-end justify-between" style="--delay: 3s">
-        <nav class="pointer-events-auto flex items-center gap-8" aria-label="Social links">
-          <!-- TODO: replace with the real X / Twitter profile once it exists -->
-          <a
-            href="https://twitter.com/mundfall"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="social-link font-rite text-[0.65rem] uppercase tracking-rite text-ash sm:text-xs"
-            >X / Twitter</a
-          >
-          <!-- TODO: replace with the real Steam store page once it exists -->
-          <a
-            href="https://store.steampowered.com/"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="social-link font-rite text-[0.65rem] uppercase tracking-rite text-ash sm:text-xs"
-            >Steam</a
-          >
-        </nav>
-        <button
-          id="drone-toggle"
-          type="button"
-          aria-pressed="false"
-          class="social-link pointer-events-auto font-rite text-[0.65rem] uppercase tracking-rite text-ash sm:text-xs"
-        >
-          Sound: Off
-        </button>
+      <footer class="reveal mt-16 flex w-full max-w-3xl items-center justify-center gap-7" style="--delay: 2.2s">
+        <!-- TODO: replace with the real Steam store page once it exists -->
+        <a href="https://store.steampowered.com/" target="_blank" rel="noopener noreferrer" class="link pointer-events-auto font-rite">Steam</a>
+        <span class="dot" aria-hidden="true"></span>
+        <!-- TODO: replace with the real X / Twitter profile once it exists -->
+        <a href="https://twitter.com/mundfall" target="_blank" rel="noopener noreferrer" class="link pointer-events-auto font-rite">X</a>
+        <span class="dot" aria-hidden="true"></span>
+        <button id="sound-toggle" type="button" aria-pressed="true" class="link pointer-events-auto font-rite">Sound</button>
       </footer>
     </main>
-
-    <p
-      id="whisper"
-      class="pointer-events-none fixed inset-x-0 bottom-24 z-20 text-center font-fraktur text-2xl text-ember opacity-0 transition-opacity duration-1000"
-      aria-hidden="true"
-    >
-      Der Mund &ouml;ffnet sich&hellip;
-    </p>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

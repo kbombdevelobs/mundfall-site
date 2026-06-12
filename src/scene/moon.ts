@@ -1,13 +1,16 @@
 /**
- * The Mundfall moon: cratered sphere, fresnel atmosphere shell,
- * dust-glow sprite, hover acceleration and the blood-eclipse rite.
+ * The Mundfall moon — a cold, cratered body under bombardment.
+ *
+ * High-relief surface, hard one-sided light with a sharp terminator falling
+ * into black. No glow, no halo — just a thin dark atmospheric edge. A slow
+ * blood-shadow eclipse breathes across it; incoming impacts deepen that red
+ * for a moment, like the body flinching under fire.
  */
 import * as THREE from 'three';
-import { createMoonMaps, createGlowSprite } from './textures';
+import { createMoonMaps } from './textures';
 
-const BASE_SPIN = 0.06; // rad/s — slow, ritual rotation
-const HOVER_SPIN = 0.34; // rad/s when the cursor rests on the moon
-const ECLIPSE_SECONDS = 6;
+const BASE_SPIN = 0.04;
+const HOVER_SPIN = 0.11;
 
 const ATMOSPHERE_VERT = /* glsl */ `
   varying vec3 vNormal;
@@ -17,127 +20,108 @@ const ATMOSPHERE_VERT = /* glsl */ `
   }
 `;
 
+// A thin dark rim that only separates the disc from the void — never glows.
 const ATMOSPHERE_FRAG = /* glsl */ `
   uniform vec3 uColor;
   uniform float uIntensity;
   varying vec3 vNormal;
   void main() {
-    float rim = pow(0.66 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.4);
+    float rim = pow(0.74 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 3.2);
     gl_FragColor = vec4(uColor, 1.0) * rim * uIntensity;
   }
 `;
+
+const RADIUS = 1.6;
 
 export class Moon {
   readonly group: THREE.Group;
 
   private readonly sphere: THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial>;
   private readonly atmosphere: THREE.ShaderMaterial;
-  private readonly glow: THREE.Sprite;
   private spinSpeed = BASE_SPIN;
   private hovered = false;
-  private eclipseT = -1; // -1 = idle, otherwise seconds elapsed
+  private flash = 0; // transient red from an impact
+  private time = 0;
 
   constructor() {
     this.group = new THREE.Group();
 
-    const { colorMap, bumpMap } = createMoonMaps();
+    const { colorMap, normalMap, bumpMap } = createMoonMaps();
     const material = new THREE.MeshStandardMaterial({
       map: colorMap,
+      normalMap,
+      normalScale: new THREE.Vector2(1.25, 1.25),
       bumpMap,
-      bumpScale: 1.6,
-      roughness: 0.96,
+      bumpScale: 0.5,
+      roughness: 0.98,
       metalness: 0.0,
+      color: new THREE.Color('#aeb0b4'),
+      emissive: new THREE.Color('#0a0e16'), // barest earthshine, not a glow
+      emissiveIntensity: 0.35,
     });
-    this.sphere = new THREE.Mesh(new THREE.SphereGeometry(1.6, 96, 96), material);
-    this.sphere.rotation.z = THREE.MathUtils.degToRad(-12); // tilted axis
+    this.sphere = new THREE.Mesh(new THREE.SphereGeometry(RADIUS, 160, 160), material);
+    this.sphere.rotation.z = THREE.MathUtils.degToRad(-8);
     this.group.add(this.sphere);
 
     this.atmosphere = new THREE.ShaderMaterial({
       vertexShader: ATMOSPHERE_VERT,
       fragmentShader: ATMOSPHERE_FRAG,
       uniforms: {
-        uColor: { value: new THREE.Color('#7c84a3') },
-        uIntensity: { value: 0.55 },
+        uColor: { value: new THREE.Color('#2a3344') },
+        uIntensity: { value: 0.32 },
       },
       blending: THREE.AdditiveBlending,
       side: THREE.BackSide,
       transparent: true,
       depthWrite: false,
     });
-    const shell = new THREE.Mesh(new THREE.SphereGeometry(1.6, 64, 64), this.atmosphere);
-    shell.scale.setScalar(1.22);
+    const shell = new THREE.Mesh(new THREE.SphereGeometry(RADIUS, 64, 64), this.atmosphere);
+    shell.scale.setScalar(1.04);
     this.group.add(shell);
-
-    this.glow = new THREE.Sprite(
-      new THREE.SpriteMaterial({
-        map: createGlowSprite('rgba(180,186,214,0.30)', 'rgba(110,116,158,0.10)'),
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        opacity: 0.55,
-      }),
-    );
-    this.glow.scale.setScalar(6.8);
-    this.group.add(this.glow);
   }
 
-  /** Pickable mesh for raycasting. */
   get hitTarget(): THREE.Object3D {
     return this.sphere;
+  }
+
+  get radius(): number {
+    return RADIUS;
+  }
+
+  getWorldCenter(target: THREE.Vector3): THREE.Vector3 {
+    return this.sphere.getWorldPosition(target);
   }
 
   setHovered(hovered: boolean): void {
     this.hovered = hovered;
   }
 
-  get eclipsing(): boolean {
-    return this.eclipseT >= 0;
+  /** A round lands — the body flinches red, briefly. */
+  registerHit(): void {
+    this.flash = Math.min(1, this.flash + 0.5);
   }
 
-  /** Begin the blood eclipse. Returns false if one is already underway. */
-  triggerEclipse(): boolean {
-    if (this.eclipsing) return false;
-    this.eclipseT = 0;
-    return true;
-  }
-
-  /**
-   * @param dt seconds since last frame
-   * @param keyLight the scene's main light, tinted during an eclipse
-   * @returns eclipse strength 0..1 for outside listeners
-   */
-  update(dt: number, keyLight: THREE.DirectionalLight): number {
-    // Hover eases the spin up; releasing eases it back down.
+  update(dt: number): void {
+    this.time += dt;
     const target = this.hovered ? HOVER_SPIN : BASE_SPIN;
     this.spinSpeed = THREE.MathUtils.damp(this.spinSpeed, target, 2.5, dt);
     this.sphere.rotation.y += this.spinSpeed * dt;
+    this.flash = Math.max(0, this.flash - dt * 0.9);
 
-    let strength = 0;
-    if (this.eclipsing) {
-      this.eclipseT += dt;
-      const t = this.eclipseT / ECLIPSE_SECONDS;
-      if (t >= 1) {
-        this.eclipseT = -1;
-      } else {
-        // Bell curve: dark red swells in, holds, then withdraws.
-        strength = Math.sin(Math.min(1, t) * Math.PI);
-        strength = Math.pow(strength, 1.4);
-      }
-    }
-
-    // Blend lighting + glow toward blood red by eclipse strength.
-    const moonTint = new THREE.Color('#ffffff').lerp(new THREE.Color('#b13832'), strength * 0.85);
-    this.sphere.material.color.copy(moonTint);
-    keyLight.color.set('#f3eedf').lerp(new THREE.Color('#c4322a'), strength);
-    keyLight.intensity = 2.4 - strength * 1.1;
+    // Slow ambient blood-shadow eclipse — recurs roughly every ~70s, mostly
+    // low. Combined with any impact flash, this is the only red in the scene.
+    const e = Math.pow(Math.max(0, Math.sin(this.time * 0.045)), 3) * 0.45;
+    const red = Math.min(1, e + this.flash);
 
     const atmoColor = this.atmosphere.uniforms.uColor.value as THREE.Color;
-    atmoColor.set('#9aa4c8').lerp(new THREE.Color('#d6332e'), strength);
-    this.atmosphere.uniforms.uIntensity.value = 0.55 + strength * 1.4;
+    atmoColor.set('#2a3344').lerp(new THREE.Color('#3a0c08'), red);
+    this.atmosphere.uniforms.uIntensity.value = 0.32 + red * 0.7;
 
-    const glowMat = this.glow.material;
-    glowMat.color.set('#ffffff').lerp(new THREE.Color('#e5383b'), strength);
-    glowMat.opacity = 0.55 + strength * 0.4;
-
-    return strength;
+    // The eclipse dims the lit face; impacts push a faint ember into it —
+    // restrained, so craters stay legible even under a sustained barrage.
+    const base = new THREE.Color('#aeb0b4').multiplyScalar(1 - e * 0.4);
+    this.sphere.material.color.copy(base).lerp(new THREE.Color('#6a2418'), this.flash * 0.3);
+    (this.sphere.material.emissive as THREE.Color).set('#0a0e16').lerp(new THREE.Color('#220804'), red);
+    this.sphere.material.emissiveIntensity = 0.35 + this.flash * 0.35;
   }
 }

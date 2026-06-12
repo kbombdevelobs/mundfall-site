@@ -78,8 +78,9 @@ export class Starfield {
     };
     this.group = new THREE.Group();
     this.shells = [
-      makeShell(900, 30, 55, '#cdd3e8', rand),
-      makeShell(500, 55, 90, '#8a93b8', rand),
+      makeShell(1700, 26, 52, '#dfe4f4', rand),
+      makeShell(1100, 52, 88, '#9aa3c6', rand),
+      makeShell(700, 88, 140, '#5a648c', rand), // faint deep field
     ];
     for (const shell of this.shells) this.group.add(shell);
   }

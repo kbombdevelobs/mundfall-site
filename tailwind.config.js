@@ -12,7 +12,7 @@ export default {
         ember: '#e5383b',
       },
       fontFamily: {
-        fraktur: ['"UnifrakturMaguntia"', 'serif'],
+        fraktur: ['"UnifrakturCook"', 'serif'],
         rite: ['"Cinzel"', 'serif'],
       },
       letterSpacing: {

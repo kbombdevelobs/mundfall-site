@@ -2,59 +2,53 @@
 
 > **The Mund Awaits.**
 
-A single-page, cinematic teaser for **Mundfall**. A cratered 3D moon turns
-slowly in the void above blackletter type; click it and it bleeds. This is a
-ground-up rebuild — the original scaffold was thrown away and reimplemented
-fresh.
+A dark, minimal, cinematic teaser for **Mundfall**. A cratered moon hangs in
+the void under steady bombardment — shells fall in from the dark, burst into
+dust and smoke, and leave scars that ride the surface as it turns. Click to
+call a strike of your own; the body flares red and a slow blood-shadow eclipse
+breathes across it. Grit, not arcade.
 
 > Note on "fable": earlier notes referenced building this "with fable". That
-> referred to the **Claude Fable 5 model** (a Fable subagent doing the
-> implementation work), not a CLI tool — no `fable` binary is involved anywhere
-> in the stack.
+> referred to the **Claude Fable 5 model** (a Fable subagent did an earlier
+> ground-up pass), not a CLI tool — no `fable` binary is involved.
 
 ## Stack
 
 - **Vite** — dev server + static build
 - **Vanilla TypeScript** (strict) — no framework
-- **Three.js** — moon, atmosphere shell, twinkling starfield
+- **Three.js** — moon, deep starfield, parallax
 - **Tailwind CSS v3** — utility layer over bespoke CSS in `src/style.css`
-- **Fonts** — `UnifrakturMaguntia` (blackletter title) + `Cinzel` (ritual UI), via Google Fonts
+- **Fonts** — `UnifrakturCook` (blackletter wordmark) + `Cinzel` (small caps)
 
-Zero binary assets: the moon's crater map and bump map are painted onto
-canvases at runtime (seeded fBm noise on a cylinder + stamped crater bowls,
-`src/scene/textures.ts`), the glow sprite is a gradient canvas, the favicon is
-an inline SVG, and the ambient drone is synthesized with WebAudio.
+Zero binary assets: the moon's colour, normal and bump maps are painted onto
+canvases at load (seeded fBm terrain + maria + 220 craters with rims and
+ejecta rays, `src/scene/textures.ts`), the film grain is an inline SVG noise,
+the favicon is inline SVG, and all audio is synthesized with WebAudio.
 
-## Interactive layer
+## Feel
 
-- **Rotating 3D moon** — real `SphereGeometry` with procedural color + bump
-  maps, fresnel atmosphere shell, additive dust halo, slow ritual spin.
-- **Hover acceleration** — rest the cursor on the moon and the spin eases up,
-  then eases back down when you leave.
-- **Blood eclipse on click** — click the moon: lighting, atmosphere, and halo
-  swell to dark red over ~6 s, the title turns ember, and a German whisper
-  surfaces, then everything withdraws.
-- **Pointer parallax** — the camera leans toward the cursor while the
-  starfield leans away, giving the scene depth.
-- **Cursor ash trail** — pale ash motes (with occasional red embers) shed from
-  the pointer and drift upward; during an eclipse most of them burn red.
-- **Synthesized drone** — an opt-in low ritual hum (two detuned oscillators
-  under a slow-breathing lowpass). It surges when an eclipse begins.
-- **Staggered reveal** — title, tagline, and links rise out of blur on load;
-  the title breathes a faint candle-glow forever after.
+- **Cratered moon, no glow** — high-relief surface from a real normal map,
+  hard raking light into a sharp terminator, crushed exposure for grit.
+- **Atmospheric eclipse** — a slow blood-shadow breathes across the disc;
+  impacts deepen it for a moment, like the body flinching under fire.
+- **Bombardment** — ambient salvos never stop: shells streak in, flash, throw
+  dust and drifting smoke, and leave charred scars that rotate with the moon.
+- **Call a strike** — click anywhere to drop a cluster onto the surface.
+- **Minimal reticle cursor**, pointer parallax, film grain, and a continuous
+  synthesized low rumble with gritty impact booms (sound on by default).
 
 ## Layout
 
 ```
-index.html              page shell, hero copy, social links
-src/main.ts             entry point — wires stage, ash, drone, DOM reactions
-src/scene/stage.ts      renderer, camera, lights, parallax, render loop
-src/scene/moon.ts       moon mesh, atmosphere shader, eclipse state machine
-src/scene/textures.ts   procedural crater/bump/glow canvas generation
-src/scene/starfield.ts  twinkling point-shader star shells
-src/fx/ash.ts           2D-canvas cursor ash particles
-src/fx/drone.ts         WebAudio ambient drone
-src/style.css           Tailwind + bespoke keyframes/vignette
+index.html              minimal shell — wordmark, tagline, three links
+src/main.ts             entry — wires stage, bombardment, audio
+src/scene/stage.ts      renderer, space lighting, parallax, moon screen-circle
+src/scene/moon.ts       moon mesh, dark atmosphere, eclipse + hit flash
+src/scene/textures.ts   procedural colour / normal / bump map generation
+src/scene/starfield.ts  twinkling point-shader star shells (deep field)
+src/fx/battle.ts        2D bombardment — shells, dust, smoke, soot, reticle
+src/fx/audio.ts         WebAudio rumble bed + combat SFX
+src/style.css           Tailwind + grain, vignette, type treatment
 ```
 
 ## Develop
@@ -68,12 +62,10 @@ npm run preview  # preview the production build
 
 ## Deploy
 
-Static output in `dist/` — drop it on any static host (Vercel/Netlify,
-framework preset: Vite).
+Static output in `dist/` — any static host (Vercel/Netlify, preset: Vite).
 
 ## TODO
 
-- Replace the stand-in social links in `index.html` (each marked with a
-  `TODO` comment):
+- Replace the stand-in links in `index.html` (each marked with a `TODO`):
+  - Steam → `https://store.steampowered.com/` (placeholder)
   - X/Twitter → `https://twitter.com/mundfall` (placeholder)
-  - Steam → `https://store.steampowered.com/` (placeholder — point at the real store page)

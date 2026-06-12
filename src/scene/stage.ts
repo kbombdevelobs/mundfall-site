@@ -1,22 +1,18 @@
 /**
- * Stage: renderer, camera, lights, pointer parallax and the render loop.
- * Owns the Moon and Starfield and exposes hooks for outside listeners
- * (eclipse strength feeds the DOM + audio layers).
+ * Stage: renderer, camera, deep-space lighting, pointer parallax and the
+ * render loop. Owns the Moon and Starfield. Exposes the moon's on-screen
+ * circle so the 2D battle layer can line gunfire and impacts up with the
+ * real geometry, plus a hit hook so surface impacts flash the moon.
  */
 import * as THREE from 'three';
 import { Moon } from './moon';
 import { Starfield } from './starfield';
-
-export interface StageCallbacks {
-  onEclipseStart: () => void;
-  onEclipseStrength: (strength: number) => void;
-}
+import type { MoonScreen } from '../fx/battle';
 
 export class Stage {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
   private readonly camera: THREE.PerspectiveCamera;
-  private readonly keyLight: THREE.DirectionalLight;
   private readonly moon = new Moon();
   private readonly stars = new Starfield();
   private readonly raycaster = new THREE.Raycaster();
@@ -24,33 +20,59 @@ export class Stage {
   private readonly clock = new THREE.Clock();
   private pointerActive = false;
 
-  constructor(
-    canvas: HTMLCanvasElement,
-    private readonly callbacks: StageCallbacks,
-  ) {
+  private readonly center = new THREE.Vector3();
+  private readonly edge = new THREE.Vector3();
+  private readonly right = new THREE.Vector3();
+  private readonly baseY = 0.92;
+
+  constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
-    this.renderer.setClearColor('#06060a');
+    this.renderer.setClearColor('#030308');
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 0.88; // crush the lows for grit
 
     this.camera = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
-    this.camera.position.set(0, 0, 8.6);
+    this.camera.position.set(0, 0, 9.4);
 
-    // Cold key light from the upper left; faint blood fill from below.
-    this.keyLight = new THREE.DirectionalLight('#f3eedf', 2.4);
-    this.keyLight.position.set(-4, 2.5, 3);
-    const fill = new THREE.DirectionalLight('#5a1a1e', 0.5);
-    fill.position.set(3, -3, -2);
-    const ambient = new THREE.AmbientLight('#1a1c2c', 0.6);
+    // Hard raking sunlight → sharp terminator falling into black. A whisper
+    // of cold fill on the dark side; almost no ambient. Gritty, not glossy.
+    const sun = new THREE.DirectionalLight('#fbf3e4', 2.7);
+    sun.position.set(-5, 2.0, 2.5);
+    const earthshine = new THREE.DirectionalLight('#27384f', 0.3);
+    earthshine.position.set(4, -1.5, 1.5);
+    const ambient = new THREE.AmbientLight('#070b14', 0.35);
 
-    this.moon.group.position.y = 0.55; // sits above the hero text
-    this.scene.add(this.keyLight, fill, ambient, this.moon.group, this.stars.group);
+    this.moon.group.position.y = this.baseY;
+    this.scene.add(sun, earthshine, ambient, this.moon.group, this.stars.group);
 
     this.resize();
     window.addEventListener('resize', () => this.resize());
     window.addEventListener('pointermove', (e) => this.onPointerMove(e));
-    canvas.addEventListener('pointerdown', (e) => this.onPointerDown(e));
 
     this.renderer.setAnimationLoop(() => this.tick());
+  }
+
+  /** Flash the moon when a player round lands. */
+  registerHit(): void {
+    this.moon.registerHit();
+  }
+
+  /** The moon's bounding circle in CSS pixels, for the battle overlay. */
+  getMoonScreen(): MoonScreen {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    this.moon.getWorldCenter(this.center);
+    this.right.setFromMatrixColumn(this.camera.matrixWorld, 0);
+    this.edge.copy(this.center).addScaledVector(this.right, this.moon.radius);
+
+    const c = this.center.clone().project(this.camera);
+    const e = this.edge.clone().project(this.camera);
+    const cx = (c.x * 0.5 + 0.5) * w;
+    const cy = (1 - (c.y * 0.5 + 0.5)) * h;
+    const ex = (e.x * 0.5 + 0.5) * w;
+    const ey = (1 - (e.y * 0.5 + 0.5)) * h;
+    const r = Math.hypot(ex - cx, ey - cy);
+    return { x: cx, y: cy, r, visible: c.z < 1 };
   }
 
   private resize(): void {
@@ -62,49 +84,34 @@ export class Stage {
     this.camera.updateProjectionMatrix();
   }
 
-  private setPointerFromEvent(e: PointerEvent): void {
+  private onPointerMove(e: PointerEvent): void {
     this.pointer.set(
       (e.clientX / window.innerWidth) * 2 - 1,
       -(e.clientY / window.innerHeight) * 2 + 1,
     );
-  }
-
-  private onPointerMove(e: PointerEvent): void {
-    this.setPointerFromEvent(e);
     this.pointerActive = true;
-  }
-
-  private onPointerDown(e: PointerEvent): void {
-    this.setPointerFromEvent(e);
-    this.raycaster.setFromCamera(this.pointer, this.camera);
-    if (this.raycaster.intersectObject(this.moon.hitTarget).length > 0) {
-      if (this.moon.triggerEclipse()) this.callbacks.onEclipseStart();
-    }
   }
 
   private tick(): void {
     const dt = Math.min(this.clock.getDelta(), 0.1);
     const time = this.clock.elapsedTime;
 
-    // Pointer parallax: the camera leans toward the cursor, stars lean away.
-    const px = this.pointer.x;
-    const py = this.pointer.y;
-    this.camera.position.x = THREE.MathUtils.damp(this.camera.position.x, px * 0.55, 2, dt);
-    this.camera.position.y = THREE.MathUtils.damp(this.camera.position.y, py * 0.35, 2, dt);
-    this.camera.lookAt(0, 0.2, 0);
-    this.stars.group.rotation.x = THREE.MathUtils.damp(this.stars.group.rotation.x, -py * 0.04, 1.5, dt);
+    // Pointer parallax: camera leans toward the cursor, stars lean away.
+    this.camera.position.x = THREE.MathUtils.damp(this.camera.position.x, this.pointer.x * 0.5, 2, dt);
+    this.camera.position.y = THREE.MathUtils.damp(this.camera.position.y, this.pointer.y * 0.32, 2, dt);
+    this.camera.lookAt(0, 0.15, 0);
+    this.stars.group.rotation.x = THREE.MathUtils.damp(this.stars.group.rotation.x, -this.pointer.y * 0.04, 1.5, dt);
+    this.stars.group.rotation.y = THREE.MathUtils.damp(this.stars.group.rotation.y, this.pointer.x * 0.04, 1.5, dt);
 
-    // Hover detection drives the spin-up.
     if (this.pointerActive) {
       this.raycaster.setFromCamera(this.pointer, this.camera);
       this.moon.setHovered(this.raycaster.intersectObject(this.moon.hitTarget).length > 0);
     }
 
-    // Gentle bobbing, like something held on a chain.
-    this.moon.group.position.y = 0.55 + Math.sin(time * 0.4) * 0.06;
+    // Slow drift, like a body in orbit.
+    this.moon.group.position.y = this.baseY + Math.sin(time * 0.25) * 0.05;
 
-    const strength = this.moon.update(dt, this.keyLight);
-    this.callbacks.onEclipseStrength(strength);
+    this.moon.update(dt);
     this.stars.update(time);
     this.renderer.render(this.scene, this.camera);
   }
