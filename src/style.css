@@ -2,177 +2,110 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --void: #05060a;
-  --bone: #e8e4d8;
-  --fog: #9aa3b2;
-  --blood: #7a1f2b;
+::selection {
+  background: theme('colors.blood');
+  color: theme('colors.bone');
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-html,
 body {
-  height: 100%;
-  background: radial-gradient(circle at 50% 35%, #0c0e16 0%, #05060a 55%, #000 100%);
-  color: var(--bone);
-  overflow: hidden;
-  font-family: 'Cinzel', serif;
   cursor: crosshair;
 }
 
-/* Three.js canvas — the moon */
-#scene {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
-  display: block;
-  z-index: 0;
+/* Keep supporting copy legible where it overlaps the bright moon */
+main p,
+main h1 {
+  text-shadow: 0 1px 16px rgba(4, 4, 8, 0.95), 0 0 36px rgba(4, 4, 8, 0.7);
 }
 
-/* Cursor dust-trail canvas */
-#dust {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
-  display: block;
-  z-index: 1;
-  pointer-events: none;
+/* Soft cinematic vignette over everything */
+.vignette {
+  background:
+    radial-gradient(ellipse at center, transparent 45%, rgba(4, 4, 8, 0.55) 80%, rgba(2, 2, 5, 0.92) 100%);
 }
 
-#ui {
-  position: relative;
-  z-index: 2;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: clamp(1.25rem, 4vw, 3rem);
-  pointer-events: none;
-}
-
-#ui a {
-  pointer-events: auto;
-}
-
-.topbar .mark {
-  font-family: 'Cinzel', serif;
-  font-weight: 800;
-  letter-spacing: 0.55em;
-  font-size: clamp(0.7rem, 1.4vw, 0.95rem);
-  color: var(--fog);
-  text-transform: uppercase;
-  opacity: 0.7;
-}
-
-.hero {
-  text-align: center;
-  margin-top: -4vh;
-}
-
-.title {
-  font-family: 'UnifrakturCook', serif;
-  font-weight: 700;
-  font-size: clamp(3rem, 11vw, 9rem);
-  line-height: 0.92;
-  letter-spacing: 0.02em;
-  color: var(--bone);
-  text-shadow:
-    0 0 28px rgba(180, 170, 150, 0.18),
-    0 0 60px rgba(122, 31, 43, 0.22);
-  animation: flicker 7s ease-in-out infinite;
-}
-
-.sub {
-  margin-top: 1.4rem;
-  font-size: clamp(0.85rem, 1.8vw, 1.1rem);
-  letter-spacing: 0.35em;
-  text-transform: uppercase;
-  color: var(--fog);
-  opacity: 0.82;
-}
-
-.links {
-  margin-top: clamp(2rem, 5vh, 3.5rem);
-  display: flex;
-  gap: 1rem;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-
-.link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.7rem 1.4rem;
-  font-size: 0.78rem;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  text-decoration: none;
-  color: var(--bone);
-  border: 1px solid rgba(232, 228, 216, 0.18);
-  background: rgba(10, 12, 20, 0.35);
-  backdrop-filter: blur(6px);
-  border-radius: 2px;
-  transition:
-    border-color 0.4s ease,
-    background 0.4s ease,
-    transform 0.3s ease,
-    box-shadow 0.4s ease;
-}
-
-.link:hover {
-  border-color: rgba(122, 31, 43, 0.8);
-  background: rgba(122, 31, 43, 0.12);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 30px rgba(122, 31, 43, 0.25);
-}
-
-.link-glyph {
-  font-size: 1rem;
-  opacity: 0.85;
-}
-
-.footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  font-size: clamp(0.6rem, 1.1vw, 0.72rem);
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--fog);
-  opacity: 0.5;
-}
-
-.footer .hint {
-  font-style: italic;
-}
-
-/* Word-by-word reveal */
-[data-reveal] {
+/* Staggered rise-from-the-dark reveal for hero copy */
+.reveal {
   opacity: 0;
-  transform: translateY(18px);
-  filter: blur(8px);
-  transition:
-    opacity 1.1s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 1.1s cubic-bezier(0.16, 1, 0.3, 1),
-    filter 1.1s ease;
+  animation: rise 1.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: var(--delay, 0s);
 }
 
-[data-reveal].is-in {
-  opacity: 1;
-  transform: translateY(0);
-  filter: blur(0);
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(1.2rem);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
 }
 
-@media (max-width: 560px) {
-  .footer .hint {
-    display: none;
+/* Candle-like breathing glow on the title */
+.title-glow {
+  text-shadow:
+    0 0 18px rgba(230, 225, 211, 0.22),
+    0 0 70px rgba(164, 22, 26, 0.18);
+  animation: rise 1.8s cubic-bezier(0.16, 1, 0.3, 1) forwards,
+    breathe 7s ease-in-out 2.6s infinite;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    text-shadow:
+      0 0 18px rgba(230, 225, 211, 0.22),
+      0 0 70px rgba(164, 22, 26, 0.18);
+  }
+  50% {
+    text-shadow:
+      0 0 26px rgba(230, 225, 211, 0.34),
+      0 0 90px rgba(164, 22, 26, 0.34);
+  }
+}
+
+/* During an eclipse the title bleeds red */
+.title-eclipsed {
+  color: theme('colors.ember');
+  text-shadow:
+    0 0 22px rgba(229, 56, 59, 0.55),
+    0 0 90px rgba(164, 22, 26, 0.6) !important;
+  transition: color 0.8s ease;
+}
+
+/* Underline-from-center hover on links */
+.social-link {
+  position: relative;
+  padding-bottom: 0.35rem;
+  transition: color 0.4s ease;
+}
+
+.social-link::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 0;
+  height: 1px;
+  background: theme('colors.ember');
+  transition: width 0.4s ease, left 0.4s ease;
+}
+
+.social-link:hover {
+  color: theme('colors.bone');
+}
+
+.social-link:hover::after {
+  left: 0;
+  width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .title-glow {
+    animation: none;
+    opacity: 1;
   }
 }
