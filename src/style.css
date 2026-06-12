@@ -116,50 +116,39 @@ body {
   }
 }
 
-/* Rally banner — a readable ribbon that drops in above the moon on a strike. */
+/* Eerie rally cry — a pale, spectral blackletter line that flickers in above
+   the moon like a half-received transmission, then dissolves. */
 #rally {
-  top: 3.4vh;
+  top: 5vh;
 }
-.rally-banner {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.7em;
-  padding: 0.6rem 1.8rem;
-  border-top: 1px solid rgba(229, 56, 59, 0.55);
-  border-bottom: 1px solid rgba(229, 56, 59, 0.55);
-  background: linear-gradient(180deg, rgba(48, 6, 6, 0.82), rgba(20, 3, 3, 0.82));
-  box-shadow: 0 0 40px rgba(122, 12, 12, 0.45), inset 0 0 30px rgba(122, 12, 12, 0.3);
-  backdrop-filter: blur(3px);
-  /* high-contrast cream on dark red — legible */
-  color: #f0e7d6;
-  font-size: clamp(0.72rem, 1.9vw, 1.05rem);
-  font-weight: 600;
-  letter-spacing: 0.32em;
-  text-transform: uppercase;
+.rally-text {
+  margin: 0;
+  font-size: clamp(1.3rem, 4.2vw, 2.7rem);
+  line-height: 1;
+  letter-spacing: 0.04em;
   white-space: nowrap;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+  color: #c01018; /* blood red */
+  text-shadow:
+    0 0 12px rgba(210, 20, 20, 0.6),
+    0 0 30px rgba(150, 8, 8, 0.5),
+    0 0 64px rgba(90, 0, 0, 0.5);
   opacity: 0;
-  transform: translateY(-160%);
 }
 .rally-you {
-  font-size: clamp(1.2rem, 3vw, 1.9rem);
-  letter-spacing: 0.02em;
-  color: #ff5a44;
-  text-shadow: 0 0 14px rgba(229, 56, 59, 0.8);
-  text-transform: none;
+  color: #ff3424; /* hotter ember red */
+  text-shadow: 0 0 18px rgba(255, 60, 40, 0.75), 0 0 40px rgba(180, 16, 10, 0.6);
 }
-.rally.is-firing .rally-banner {
-  animation: bannerin 1.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+.rally.is-firing .rally-text {
+  animation: haunt 4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
-@keyframes bannerin {
-  0% { opacity: 0; transform: translateY(-160%); }
-  12% { opacity: 1; transform: translateY(0); }
-  16% { transform: translateY(0) translateX(3px); }
-  20% { transform: translateY(0) translateX(-3px); }
-  24% { transform: translateY(0) translateX(0); }
-  82% { opacity: 1; transform: translateY(0); }
-  100% { opacity: 0; transform: translateY(-60%); }
+/* A ghostly coalesce — gathers out of blur, holds clear and readable, then
+   dissolves. Eerie in the bloom, never a flicker. */
+@keyframes haunt {
+  0% { opacity: 0; transform: translateY(12px) scale(1.04); filter: blur(9px); }
+  20% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+  78% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+  100% { opacity: 0; transform: translateY(-10px) scale(0.99); filter: blur(6px); }
 }
 
 @media (prefers-reduced-motion: reduce) {

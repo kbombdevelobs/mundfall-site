@@ -10,9 +10,9 @@ const STAR_VERT = /* glsl */ `
   uniform float uTime;
   varying float vTwinkle;
   void main() {
-    vTwinkle = 0.55 + 0.45 * sin(uTime * 1.4 + aPhase);
+    vTwinkle = 0.7 + 0.3 * sin(uTime * 1.4 + aPhase);
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    gl_PointSize = aSize * (60.0 / -mv.z);
+    gl_PointSize = max(1.6, aSize * (120.0 / -mv.z));
     gl_Position = projectionMatrix * mv;
   }
 `;
@@ -23,8 +23,11 @@ const STAR_FRAG = /* glsl */ `
   void main() {
     vec2 c = gl_PointCoord - 0.5;
     float d = length(c);
-    float alpha = smoothstep(0.5, 0.0, d) * vTwinkle;
-    gl_FragColor = vec4(uColor, alpha);
+    // Soft halo plus a bright hot core, so stars read clearly against the void.
+    float halo = smoothstep(0.5, 0.0, d) * 0.7;
+    float core = smoothstep(0.16, 0.0, d);
+    float alpha = (halo + core) * vTwinkle;
+    gl_FragColor = vec4(uColor + core * 0.5, alpha);
   }
 `;
 
@@ -43,7 +46,7 @@ function makeShell(count: number, minR: number, maxR: number, color: string, ran
     positions[i * 3 + 1] = r * u;
     positions[i * 3 + 2] = r * s * Math.sin(theta);
     phases[i] = rand() * Math.PI * 2;
-    sizes[i] = 0.5 + rand() * 1.6;
+    sizes[i] = 0.9 + rand() * 2.2;
   }
 
   const geometry = new THREE.BufferGeometry();
@@ -78,9 +81,9 @@ export class Starfield {
     };
     this.group = new THREE.Group();
     this.shells = [
-      makeShell(1700, 26, 52, '#dfe4f4', rand),
-      makeShell(1100, 52, 88, '#9aa3c6', rand),
-      makeShell(700, 88, 140, '#5a648c', rand), // faint deep field
+      makeShell(2000, 26, 52, '#ffffff', rand),
+      makeShell(1300, 52, 88, '#cdd6f2', rand),
+      makeShell(900, 88, 140, '#8c98c4', rand), // brighter deep field
     ];
     for (const shell of this.shells) this.group.add(shell);
   }

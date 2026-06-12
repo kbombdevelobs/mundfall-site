@@ -46,5 +46,5 @@ window.addEventListener('pointerdown', (e) => {
   void rally.offsetWidth; // force reflow so the animation restarts
   rally.classList.add('is-firing');
   window.clearTimeout(rallyTimer);
-  rallyTimer = window.setTimeout(() => rally.classList.remove('is-firing'), 1700);
+  rallyTimer = window.setTimeout(() => rally.classList.remove('is-firing'), 3400);
 });

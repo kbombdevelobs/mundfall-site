@@ -26,6 +26,7 @@ export class Stage {
   private readonly edge = new THREE.Vector3();
   private readonly right = new THREE.Vector3();
   private readonly baseY = 0.92;
+  private readonly sun: THREE.DirectionalLight;
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
@@ -38,14 +39,15 @@ export class Stage {
 
     // Hard raking sunlight → sharp terminator falling into black. A whisper
     // of cold fill on the dark side; almost no ambient. Gritty, not glossy.
-    const sun = new THREE.DirectionalLight('#fbf3e4', 2.7);
-    sun.position.set(-5, 2.0, 2.5);
+    // The moon dims + reddens this light during an eclipse.
+    this.sun = new THREE.DirectionalLight('#fbf3e4', 2.7);
+    this.sun.position.set(-5, 2.0, 2.5);
     const earthshine = new THREE.DirectionalLight('#27384f', 0.3);
     earthshine.position.set(4, -1.5, 1.5);
     const ambient = new THREE.AmbientLight('#070b14', 0.35);
 
     this.moon.group.position.y = this.baseY;
-    this.scene.add(sun, earthshine, ambient, this.moon.group, this.stars.group, this.debris.group);
+    this.scene.add(this.sun, earthshine, ambient, this.moon.group, this.stars.group, this.debris.group);
 
     this.resize();
     window.addEventListener('resize', () => this.resize());
@@ -63,7 +65,6 @@ export class Stage {
    * throw real 3D rubble off the impact point.
    */
   handleImpact(screenX: number, screenY: number): void {
-    this.moon.registerHit();
     this.scratchNdc.set(
       (screenX / window.innerWidth) * 2 - 1,
       -(screenY / window.innerHeight) * 2 + 1,
@@ -137,7 +138,7 @@ export class Stage {
     // Slow drift, like a body in orbit.
     this.moon.group.position.y = this.baseY + Math.sin(time * 0.25) * 0.05;
 
-    this.moon.update(dt);
+    this.moon.update(dt, this.sun);
     this.debris.update(dt);
     this.stars.update(time);
     this.renderer.render(this.scene, this.camera);

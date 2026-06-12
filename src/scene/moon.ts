@@ -1,16 +1,22 @@
 /**
  * The Mundfall moon — a cold, cratered body under bombardment.
  *
- * High-relief surface, hard one-sided light with a sharp terminator falling
- * into black. No glow, no halo — just a thin dark atmospheric edge. A slow
- * blood-shadow eclipse breathes across it; incoming impacts deepen that red
- * for a moment, like the body flinching under fire.
+ * Hard one-sided light with a sharp terminator into black; a thin dark
+ * atmospheric edge, no glow at rest. Bombardment never colours it. Only a
+ * deliberate strike triggers the eclipse: the sun dims and reddens, the body
+ * sinks into a deep red shadow, and a burning red corona swells around the
+ * rim over several seconds, then recedes.
  */
 import * as THREE from 'three';
-import { createMoonMaps } from './textures';
+import { createMoonMaps, createGlowSprite } from './textures';
 
 const BASE_SPIN = 0.04;
 const HOVER_SPIN = 0.11;
+const ECLIPSE_SECONDS = 5.5;
+
+// Sun rest values — kept in sync with Stage so the eclipse can restore them.
+const SUN_COLOR = '#fbf3e4';
+const SUN_INTENSITY = 2.7;
 
 const ATMOSPHERE_VERT = /* glsl */ `
   varying vec3 vNormal;
@@ -20,7 +26,6 @@ const ATMOSPHERE_VERT = /* glsl */ `
   }
 `;
 
-// A thin dark rim that only separates the disc from the void — never glows.
 const ATMOSPHERE_FRAG = /* glsl */ `
   uniform vec3 uColor;
   uniform float uIntensity;
@@ -38,11 +43,10 @@ export class Moon {
 
   private readonly sphere: THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial>;
   private readonly atmosphere: THREE.ShaderMaterial;
+  private readonly corona: THREE.Sprite;
   private spinSpeed = BASE_SPIN;
   private hovered = false;
-  private flash = 0; // small per-impact ember
-  private eclipse = 0; // full blood eclipse, triggered on a strike
-  private time = 0;
+  private eclipseT = -1; // -1 idle, else seconds elapsed into the eclipse
 
   // Live surface canvases + textures, so impacts can burn real craters in.
   private readonly colorCtx: CanvasRenderingContext2D;
@@ -72,6 +76,7 @@ export class Moon {
     this.baseBump = baseBump;
     this.texW = width;
     this.texH = height;
+
     const material = new THREE.MeshStandardMaterial({
       map: colorMap,
       normalMap,
@@ -103,6 +108,20 @@ export class Moon {
     const shell = new THREE.Mesh(new THREE.SphereGeometry(RADIUS, 64, 64), this.atmosphere);
     shell.scale.setScalar(1.04);
     this.group.add(shell);
+
+    // Burning corona — invisible at rest, swells red only during an eclipse.
+    this.corona = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: createGlowSprite('rgba(255,64,40,0.55)', 'rgba(150,16,8,0.18)'),
+        color: new THREE.Color('#ff3a20'),
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        transparent: true,
+        opacity: 0,
+      }),
+    );
+    this.corona.scale.setScalar(6.6);
+    this.group.add(this.corona);
   }
 
   get hitTarget(): THREE.Object3D {
@@ -121,14 +140,9 @@ export class Moon {
     this.hovered = hovered;
   }
 
-  /** A round lands — the body flinches red, briefly. */
-  registerHit(): void {
-    this.flash = Math.min(1, this.flash + 0.4);
-  }
-
-  /** A strike: drown the whole moon — lit face and dark limb — in blood red. */
+  /** A strike begins the blood eclipse (restart if one's already underway). */
   triggerEclipse(): void {
-    this.eclipse = 1;
+    this.eclipseT = 0;
   }
 
   /**
@@ -183,13 +197,13 @@ export class Moon {
     this.bumpMap.needsUpdate = true;
   }
 
-  update(dt: number): void {
-    this.time += dt;
+  /**
+   * @param sun the scene's key light — dimmed and reddened during an eclipse.
+   */
+  update(dt: number, sun: THREE.DirectionalLight): void {
     const target = this.hovered ? HOVER_SPIN : BASE_SPIN;
     this.spinSpeed = THREE.MathUtils.damp(this.spinSpeed, target, 2.5, dt);
     this.sphere.rotation.y += this.spinSpeed * dt;
-    this.flash = Math.max(0, this.flash - dt * 0.9);
-    this.eclipse = Math.max(0, this.eclipse - dt * 0.3); // ~3.3s full eclipse
 
     // Age + heal scars; re-composite the surface a few times a second.
     if (this.scars.length > 0) {
@@ -204,24 +218,28 @@ export class Moon {
       }
     }
 
-    // Slow ambient blood-shadow that recurs roughly every ~70s, mostly low.
-    const ambient = Math.pow(Math.max(0, Math.sin(this.time * 0.045)), 3) * 0.4;
-    const ecl = this.eclipse;
-    const red = Math.min(1, Math.max(ambient, this.flash, ecl));
+    // Eclipse: a bell-curve swell over ECLIPSE_SECONDS. The ONLY red source.
+    let s = 0;
+    if (this.eclipseT >= 0) {
+      this.eclipseT += dt;
+      const t = this.eclipseT / ECLIPSE_SECONDS;
+      if (t >= 1) this.eclipseT = -1;
+      else s = Math.pow(Math.sin(t * Math.PI), 1.1);
+    }
 
+    // Sun sinks toward a dim blood red — the moon falls into shadow.
+    sun.color.set(SUN_COLOR).lerp(new THREE.Color('#b8281c'), s);
+    sun.intensity = SUN_INTENSITY - s * 1.7;
+
+    // Lit face darkens and reddens into the shadow.
+    this.sphere.material.color.set('#aeb0b4').lerp(new THREE.Color('#3a0d0a'), s * 0.9);
+    (this.sphere.material.emissive as THREE.Color).set('#0a0e16').lerp(new THREE.Color('#2a0805'), s);
+    this.sphere.material.emissiveIntensity = 0.35 + s * 0.45;
+
+    // Burning corona swells around the rim; the dark sky-rim deepens to red.
     const atmoColor = this.atmosphere.uniforms.uColor.value as THREE.Color;
-    atmoColor.set('#2a3344').lerp(new THREE.Color('#5a0c06'), red);
-    this.atmosphere.uniforms.uIntensity.value = 0.32 + red * 1.5;
-
-    // Lit face bleeds deep red; a strike pushes it all the way over.
-    const base = new THREE.Color('#aeb0b4').multiplyScalar(1 - ambient * 0.35);
-    const surfaceRed = Math.max(this.flash * 0.4, ecl * 0.9);
-    this.sphere.material.color.copy(base).lerp(new THREE.Color('#5e1410'), surfaceRed);
-
-    // High red emissive on eclipse makes the WHOLE disc glow — even the dark
-    // limb — so a strike truly bathes the entire moon in blood red.
-    const emRed = Math.max(ambient * 0.4, this.flash * 0.5, ecl);
-    (this.sphere.material.emissive as THREE.Color).set('#0a0e16').lerp(new THREE.Color('#7a1006'), emRed);
-    this.sphere.material.emissiveIntensity = 0.35 + this.flash * 0.4 + ecl * 1.9;
+    atmoColor.set('#2a3344').lerp(new THREE.Color('#ff2c16'), s);
+    this.atmosphere.uniforms.uIntensity.value = 0.32 + s * 2.4;
+    this.corona.material.opacity = s * 0.9;
   }
 }
